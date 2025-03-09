@@ -19,7 +19,7 @@ FileName = 'log.txt'
 # define motor controller pins
 s1 = Stepper(18,19,steps_per_rev=96000,speed_sps=1000)
 disable = Pin(20, Pin.OUT)
-endswitch = Pin(21, Pin.IN, Pin.PULL_UP)
+endswitch = Pin(22, Pin.IN, Pin.PULL_UP)
 alarm = Pin(17, Pin.IN, Pin.PULL_UP)
 LED_FileWrite = machine.Pin("LED",machine.Pin.OUT)
 
