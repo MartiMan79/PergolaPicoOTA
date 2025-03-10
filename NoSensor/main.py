@@ -146,6 +146,7 @@ def homing():
     if alarm():
         mqttClient.publish(PUBLISH_TOPIC, str("DRIVE ALARM").encode())
         log("DRIVE ALARM")
+        reset()
     
     utime.sleep(1)
     
@@ -237,6 +238,7 @@ def main(blocking_method=False):
         mqttClient.publish(PUBLISH_TOPIC, str("DRIVE alarm").encode())
         log("DRIVE alarm")
         utime.sleep(1)
+        reset()
 
 
 if homingneeded == True:
