@@ -111,7 +111,8 @@ def homing():
     mqttClient.set_callback(sub_cb)
     mqttClient.connect()
     mqttClient.publish(PUBLISH_TOPIC, str("Homing").encode())
-    
+
+    LED_FileWrite(1)
     s1.speed(500) #use low speed for the calibration
     s1.free_run(-1) #move backwards
     disable(0)
@@ -147,7 +148,7 @@ def homing():
         mqttClient.publish(PUBLISH_TOPIC, str("DRIVE ALARM").encode())
         log("DRIVE ALARM")
         reset()
-    
+    LED_FileWrite(0)
     utime.sleep(1)
     
 
