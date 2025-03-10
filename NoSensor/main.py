@@ -5,7 +5,7 @@ import utime
 import ubinascii
 from umqtt.simple import MQTTClient
 import os
-
+import sys
 
 #Log declarations
 rtc=machine.RTC()
@@ -113,10 +113,15 @@ def homing():
     s1.speed(500) #use low speed for the calibration
     s1.free_run(-1) #move backwards
     disable(0)
-    
-    while endswitch.value() == 1 and not alarm(): #wait till the switch is triggered
-        pass
-            
+    if not endswitch():
+        while endswitch.value() == 0 and not alarm(): #wait till the switch is triggered
+            pass
+    else:
+        disable(1)
+        mqttClient.publish(PUBLISH_TOPIC, str("Homing failed!").encode())
+        log("Homing failed")
+        sys.exit("Homing failed")    
+        
     s1.stop() #stop as soon as the switch is triggered
     s1.overwrite_pos(0) #set position as 0 point
     s1.target(0) #set the target to the same value to avoid unwanted movement
@@ -124,7 +129,7 @@ def homing():
     homingneeded = False
     s1.free_run(1) #move backwards
     
-    while endswitch.value() == 0: #wait till the switch is triggered
+    while endswitch.value() == 1: #wait till the switch is triggered
         pass
     
     utime.sleep(0.1)        
@@ -168,7 +173,7 @@ def main(blocking_method=False):
             mqttClient.check_msg()
             utime.sleep(1)
             
-        if s1.get_pos() != pos and not rain and endswitch():
+        if s1.get_pos() != pos and not rain and not endswitch():
             disable(0)
             s1.target(pos)
             mqttClient.publish(PUBLISH_TOPIC, str("Moving").encode())
@@ -176,22 +181,22 @@ def main(blocking_method=False):
             utime.sleep(0.5)
             updatepos = True
                         
-        elif s1.get_pos() == pos and not rain and endswitch() and updatepos:
+        elif s1.get_pos() == pos and not rain and not endswitch() and updatepos:
             #log("Ready and no rain")
             disable(1)
             mqttClient.publish(PUBLISH_TOPIC, str("Ready").encode())
             log("Ready")
             utime.sleep(0.5)
             updatepos = False
-        
-        elif rain and endswitch():
+                    
+        elif rain and not endswitch():
             #log("Raining")
             disable(0)
             s1.target(0)
             mqttClient.publish(PUBLISH_TOPIC, str("Raining").encode())
             utime.sleep(0.5)
         
-        elif not endswitch():
+        elif endswitch():
             disable(1)
             mqttClient.publish(PUBLISH_TOPIC, str("Positioning error!").encode())
             log("Positioning error!")
@@ -210,7 +215,7 @@ def main(blocking_method=False):
                 s1.free_run(-1) #move backwards
                 disable(0)
                 
-                while endswitch.value() == 0: #wait till the switch is triggered
+                while endswitch.value() == 1: #wait till the switch is triggered
                     pass
                 
                 utime.sleep(0.1)        
@@ -249,4 +254,3 @@ if __name__ == "__main__":
             reset()
         except KeyboardInterrupt:
             reset()
-
