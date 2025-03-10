@@ -1,4 +1,4 @@
-#Version 3
+#Version 3.1
 
 import machine
 from machine import Pin
