@@ -171,7 +171,7 @@ async def homing(client):
         LED_FileWrite(0)
         utime.sleep(1)
         break
-        #asyncio.run(main(client))
+        
     
 
 
@@ -183,9 +183,11 @@ async def main(client):
         return
         
     #log(f"Begin connection with MQTT Broker :: {MQTT_BROKER}")
+    global homingneeded
+    while True and homingneeded == True:
+        await homing(client)
+        break
     
-    #log(f"Connected to MQTT  Broker :: {MQTT_BROKER}, and waiting for callback function to be called!")
-    previousState = False
     updatepos = False
     
     while True and not alarm():# and mqttClient.connect():
@@ -223,34 +225,9 @@ async def main(client):
             disable(1)
             await client.publish(PUBLISH_TOPIC, str("Positioning error!").encode())
             log("Positioning error!")
+            utime.sleep(5)
+            break
             
-            utime.sleep(1)
-            if pos <= 10000:
-                log("error needs homing")
-                homingneeded = True
-                utime.sleep(1)
-                break
-                
-            
-            elif pos >= 10000:
-                log("moving back")
-                s1.speed(500) #use low speed for the calibration
-                s1.free_run(-1) #move backwards
-                disable(0)
-                
-                while endswitch.value() == 1: #wait till the switch is triggered
-                    pass
-                
-                utime.sleep(0.1)        
-                s1.stop() #stop as soon as the switch is triggered
-                utime.sleep(1)
-                log("error needs homing")
-                homingneeded = True
-                utime.sleep(1)
-                break
-        
-
-
       
     while True and alarm():
         
@@ -259,7 +236,7 @@ async def main(client):
         await client.publish(PUBLISH_TOPIC, str("DRIVE alarm").encode())
         log("DRIVE alarm")
         utime.sleep(1)
-        reset()
+        #reset()
 
 
 # Define configuration
@@ -275,10 +252,7 @@ client = MQTTClient(config)
 
 asyncio.create_task(heartbeat())
 try:
-    if homingneeded == True:
-        asyncio.run(homing(client))
-    else:
-        asyncio.run(main(client))
+    asyncio.run(main(client))
     
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
