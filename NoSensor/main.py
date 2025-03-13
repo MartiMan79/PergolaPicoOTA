@@ -1,13 +1,14 @@
-#Version 3.1
+#Version 4
 
 import machine
 from machine import Pin
 from stepper import Stepper
 import utime
-import ubinascii
-from umqtt.simple import MQTTClient
+from mqtt_as import MQTTClient
+from mqtt_local import wifi_led, blue_led, config
+import uasyncio as asyncio
 import os
-import sys
+
 
 #Log declarations
 rtc=machine.RTC()
@@ -26,14 +27,13 @@ alarm = Pin(17, Pin.IN, Pin.PULL_UP)
 LED_FileWrite = machine.Pin("LED",machine.Pin.OUT)
 
 # Default  MQTT_BROKER to connect to
-MQTT_BROKER = "rpi4.local"
-MACHINE_ID = "_rain_sensor"
-DEVICE_ID = "pico_w"
-CLIENT_ID = str(DEVICE_ID)#+str((MACHINE_ID))#[14:-1])
+#MQTT Details
+CLIENT_ID = config["client_id"]
+
 SUBSCRIBE_TOPIC1 = str(CLIENT_ID)+"/set_angle"
-SUBSCRIBE_TOPIC2 = str(DEVICE_ID)+str(MACHINE_ID)+"/status"
+SUBSCRIBE_TOPIC2 = str(CLIENT_ID)+"/status"
 PUBLISH_TOPIC = str(CLIENT_ID)+"/status"
-mqttClient = MQTTClient(CLIENT_ID, MQTT_BROKER, keepalive=0)
+
 #Rain detection
 #rain = Pin(16, Pin.IN, Pin.PULL_UP)
 
@@ -76,13 +76,13 @@ def log(loginfo:str):
 
 
 # Received messages from subscriptions will be delivered to this callback
-def sub_cb(topic, msg):
+def sub_cb(topic, msg, retained):
     global pos
     global rain
     
     
         
-    if topic.decode() == str(CLIENT_ID)+"/set_angle":
+    if topic.decode() == SUBSCRIBE_TOPIC1:
         #log("correct subscribe")
         if not 0 <= int(msg.decode()) <= 34666:
             #log(str(msg.decode() + " is no INT"))
@@ -90,7 +90,7 @@ def sub_cb(topic, msg):
         else:
             pos = int(msg.decode())
         
-    elif topic.decode() == "status":
+    elif topic.decode() == SUBSCRIBE_TOPIC2:
         if msg.decode() == "Raining":
             rain = True
         else:
@@ -99,88 +99,107 @@ def sub_cb(topic, msg):
     log(str(topic + ": " + msg))
     utime.sleep(1)   
 
-def reset():
-    log("Resetting...")
-    utime.sleep(5)
-    machine.reset()
- 
-def homing():
-    log('Homing')
-    log(f"Begin connection with MQTT Broker :: {MQTT_BROKER}")
-    #mqttClient = MQTTClient(CLIENT_ID, MQTT_BROKER, keepalive=60)
-    mqttClient.set_callback(sub_cb)
-    mqttClient.connect()
-    mqttClient.publish(PUBLISH_TOPIC, str("Homing").encode())
+# Demonstrate scheduler is operational.
+async def heartbeat():
+    s = True
+    while True:
+        await asyncio.sleep_ms(500)
+        blue_led(s)
+        s = not s
 
-    LED_FileWrite(1)
-    s1.speed(500) #use low speed for the calibration
-    s1.free_run(-1) #move backwards
-    disable(0)
-    if not endswitch():
-        while endswitch.value() == 0 and not alarm(): #wait till the switch is triggered
-            pass
-    else:
-        disable(1)
-        mqttClient.publish(PUBLISH_TOPIC, str("Homing failed!").encode())
-        log("Homing failed")
-        sys.exit("Homing failed")    
+async def wifi_han(state):
+    wifi_led(not state)
+    print('Wifi is ', 'up' if state else 'down')
+    await asyncio.sleep(1)
+
+
+
+async def homing(client):
+    
+    try:
+        await client.connect()
+    except OSError:
+        print('Connection failed.')
+        return
+    
+    while True:
+        await asyncio.sleep(1)
+        log('Homing')
+        #log(f"Begin connection with MQTT Broker :: {MQTT_BROKER}")
+        #mqttClient = MQTTClient(CLIENT_ID, MQTT_BROKER, keepalive=60)
+        await client.publish(PUBLISH_TOPIC, str("Homing").encode())
         
-    s1.stop() #stop as soon as the switch is triggered
-    s1.overwrite_pos(0) #set position as 0 point
-    s1.target(0) #set the target to the same value to avoid unwanted movement
+        
+        LED_FileWrite(1)
+        s1.speed(500) #use low speed for the calibration
+        s1.free_run(-1) #move backwards
+        disable(0)
+        
+        if not endswitch():
+            while endswitch.value() == 0 and not alarm(): #wait till the switch is triggered
+                pass
+        else:
+            disable(1)
+            await client.publish(PUBLISH_TOPIC, str("Homing failed!").encode())
+            log("Homing failed")
+            return("Homing failed")    
+        
+        s1.stop() #stop as soon as the switch is triggered
+        s1.overwrite_pos(0) #set position as 0 point
+        s1.target(0) #set the target to the same value to avoid unwanted movement
     
-    homingneeded = False
-    s1.free_run(1) #move backwards
+        homingneeded = False
+        s1.free_run(1) #move backwards
     
-    while endswitch.value() == 1: #wait till the switch is triggered
-        pass
+        while endswitch.value() == 1: #wait till the switch is triggered
+            pass
     
-    utime.sleep(0.1)        
-    s1.stop() #stop as soon as the switch is triggered
-    s1.overwrite_pos(0) #set position as 0 point
-    s1.target(0) #set the target to the same value to avoid unwanted movement
-    s1.speed(1000) #return to default speed
-    s1.track_target() #start stepper again
-    disable(1)
-    mqttClient.publish(PUBLISH_TOPIC, str("Homing Successful").encode())
-    log("Homing Successful")
-    if alarm():
-        mqttClient.publish(PUBLISH_TOPIC, str("DRIVE ALARM").encode())
-        log("DRIVE ALARM")
-        reset()
-    LED_FileWrite(0)
-    utime.sleep(1)
+        utime.sleep(0.1)        
+        s1.stop() #stop as soon as the switch is triggered
+        s1.overwrite_pos(0) #set position as 0 point
+        s1.target(0) #set the target to the same value to avoid unwanted movement
+        s1.speed(1000) #return to default speed
+        s1.track_target() #start stepper again
+        disable(1)
+        await client.publish(PUBLISH_TOPIC, str("Homing Successful").encode())
+        log("Homing Successful")
+        
+        if alarm():
+            await client.publish(PUBLISH_TOPIC, str("DRIVE ALARM").encode())
+            log("DRIVE ALARM")
+            reset()
+        LED_FileWrite(0)
+        utime.sleep(1)
+        break
+        #asyncio.run(main(client))
     
 
 
-def main(blocking_method=False):
-    log(f"Begin connection with MQTT Broker :: {MQTT_BROKER}")
-    #mqttClient = MQTTClient(CLIENT_ID, MQTT_BROKER, keepalive=90)
-    mqttClient.set_callback(sub_cb)
-    mqttClient.connect()
-    mqttClient.subscribe(SUBSCRIBE_TOPIC1)
-    mqttClient.subscribe(SUBSCRIBE_TOPIC2)
-    log(f"Connected to MQTT  Broker :: {MQTT_BROKER}, and waiting for callback function to be called!")
+async def main(client):
+    try:
+        await client.connect()
+    except OSError:
+        print('Connection failed.')
+        return
+        
+    #log(f"Begin connection with MQTT Broker :: {MQTT_BROKER}")
+    
+    #log(f"Connected to MQTT  Broker :: {MQTT_BROKER}, and waiting for callback function to be called!")
     previousState = False
     updatepos = False
-        
+    
     while True and not alarm():# and mqttClient.connect():
         # Non-blocking wait for message
         #log("Ready for operation")
-        
-        
+        await client.subscribe(SUBSCRIBE_TOPIC1)
+        await client.subscribe(SUBSCRIBE_TOPIC2)
+    
         global rain
-        
-        if blocking_method:
-            mqttClient.wait_msg()
-        else:
-            mqttClient.check_msg()
-            utime.sleep(1)
-            
+         
         if s1.get_pos() != pos and not rain and not endswitch():
             disable(0)
             s1.target(pos)
-            mqttClient.publish(PUBLISH_TOPIC, str("Moving").encode())
+            await client.publish(PUBLISH_TOPIC, str("Moving").encode())
             log("Moving from: " + str(s1.get_pos()) + " to "+ str(pos))
             utime.sleep(0.5)
             updatepos = True
@@ -188,7 +207,7 @@ def main(blocking_method=False):
         elif s1.get_pos() == pos and not rain and not endswitch() and updatepos:
             #log("Ready and no rain")
             disable(1)
-            mqttClient.publish(PUBLISH_TOPIC, str("Ready").encode())
+            await client.publish(PUBLISH_TOPIC, str("Ready").encode())
             log("Ready")
             utime.sleep(0.5)
             updatepos = False
@@ -197,18 +216,18 @@ def main(blocking_method=False):
             #log("Raining")
             disable(0)
             s1.target(0)
-            mqttClient.publish(PUBLISH_TOPIC, str("Raining").encode())
+            await client.publish(PUBLISH_TOPIC, str("Raining").encode())
             utime.sleep(0.5)
         
         elif endswitch():
             disable(1)
-            mqttClient.publish(PUBLISH_TOPIC, str("Positioning error!").encode())
+            await client.publish(PUBLISH_TOPIC, str("Positioning error!").encode())
             log("Positioning error!")
             
             utime.sleep(1)
             if pos <= 10000:
                 log("error needs homing")
-                homing()
+                homingneeded = True
                 utime.sleep(1)
                 break
                 
@@ -226,36 +245,42 @@ def main(blocking_method=False):
                 s1.stop() #stop as soon as the switch is triggered
                 utime.sleep(1)
                 log("error needs homing")
-                homing()
+                homingneeded = True
                 utime.sleep(1)
                 break
         
-    
 
-  
+
+      
     while True and alarm():
+        
         log("alarm")
         disable(1)
-        mqttClient.publish(PUBLISH_TOPIC, str("DRIVE alarm").encode())
+        await client.publish(PUBLISH_TOPIC, str("DRIVE alarm").encode())
         log("DRIVE alarm")
         utime.sleep(1)
         reset()
 
 
-if homingneeded == True:
-                homing()    
+# Define configuration
+config['subs_cb'] = sub_cb
+config['wifi_coro'] = wifi_han
+config['clean'] = False
+#config['will'] = ('Info/result', f'Lost connection', False, 0)
+config['keepalive'] = 120
 
-if __name__ == "__main__":
+# Set up client
+MQTTClient.DEBUG = False  # Optional
+client = MQTTClient(config)
+
+asyncio.create_task(heartbeat())
+try:
+    if homingneeded == True:
+        asyncio.run(homing(client))
+    else:
+        asyncio.run(main(client))
     
-    while True:
-        
-        try:
-            main()
-            
-            
-                            
-        except OSError as e:
-            log("Error: " + str(e))
-            reset()
-        except KeyboardInterrupt:
-            reset()
+finally:
+    client.close()  # Prevent LmacRxBlk:1 errors
+    asyncio.new_event_loop()
+
