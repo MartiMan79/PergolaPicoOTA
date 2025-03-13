@@ -12,12 +12,8 @@ import os
 
 #Log declarations
 rtc=machine.RTC()
-#FileNameSys = 'syslog.txt'
 FileName = 'log.txt'
 
-#os.dupterm(open(FileNameSys, "a"))
-
-# define motor controller pins
 
 # define motor controller pins
 s1 = Stepper(18,19,steps_per_rev=96000,speed_sps=1000)
@@ -149,7 +145,7 @@ async def homing(client):
         s1.target(0) #set the target to the same value to avoid unwanted movement
     
         homingneeded = False
-        s1.free_run(1) #move backwards
+        s1.free_run(1) #move forwards
     
         while endswitch.value() == 1: #wait till the switch is triggered
             pass
@@ -176,13 +172,7 @@ async def homing(client):
 
 
 async def main(client):
-    try:
-        await client.connect()
-    except OSError:
-        print('Connection failed.')
-        return
-        
-    #log(f"Begin connection with MQTT Broker :: {MQTT_BROKER}")
+    
     global homingneeded
     while True and homingneeded == True:
         await homing(client)
@@ -190,9 +180,8 @@ async def main(client):
     
     updatepos = False
     
-    while True and not alarm():# and mqttClient.connect():
-        # Non-blocking wait for message
-        #log("Ready for operation")
+    while True and not alarm():
+        
         await client.subscribe(SUBSCRIBE_TOPIC1)
         await client.subscribe(SUBSCRIBE_TOPIC2)
     
@@ -205,7 +194,27 @@ async def main(client):
             log("Moving from: " + str(s1.get_pos()) + " to "+ str(pos))
             utime.sleep(0.5)
             updatepos = True
-                        
+            
+        elif endswitch():
+            s1.stop()
+            
+            if pos >= s1.get_pos():
+                s1.free_run(-1)
+                while endswitch.value() == 1: #wait till the switch is triggered
+                    pass
+                
+            elif pos <= s1.get_pos():
+                s1.free_run(1)
+                while endswitch.value() == 1: #wait till the switch is triggered
+                    pass
+            utime.sleep(0.5)
+            s1.stop()
+            #disable(1)
+            await client.publish(PUBLISH_TOPIC, str("Positioning error!").encode())
+            log("Positioning error!")
+            utime.sleep(5)
+            machine.reset()
+            
         elif s1.get_pos() == pos and not rain and not endswitch() and updatepos:
             #log("Ready and no rain")
             disable(1)
@@ -221,12 +230,7 @@ async def main(client):
             await client.publish(PUBLISH_TOPIC, str("Raining").encode())
             utime.sleep(0.5)
         
-        elif endswitch():
-            disable(1)
-            await client.publish(PUBLISH_TOPIC, str("Positioning error!").encode())
-            log("Positioning error!")
-            utime.sleep(5)
-            break
+        
             
       
     while True and alarm():
