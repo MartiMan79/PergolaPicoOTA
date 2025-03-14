@@ -112,11 +112,6 @@ async def wifi_han(state):
 
 async def homing(client):
     
-    try:
-        await client.connect()
-    except OSError:
-        print('Connection failed.')
-        return
     
     while True:
         await asyncio.sleep(1)
@@ -138,7 +133,8 @@ async def homing(client):
             disable(1)
             await client.publish(PUBLISH_TOPIC, str("Homing failed!").encode())
             log("Homing failed")
-            return("Homing failed")    
+            return("Homing failed")
+            
         
         s1.stop() #stop as soon as the switch is triggered
         s1.overwrite_pos(0) #set position as 0 point
@@ -168,15 +164,7 @@ async def homing(client):
         utime.sleep(1)
         break
         
-    
-
-
-async def main(client):
-    
-    global homingneeded
-    while True and homingneeded == True:
-        await homing(client)
-        break
+async def motion(client):
     
     updatepos = False
     
@@ -187,24 +175,21 @@ async def main(client):
     
         global rain
          
-        if s1.get_pos() != pos and not rain and not endswitch():
-            disable(0)
-            s1.target(pos)
-            await client.publish(PUBLISH_TOPIC, str("Moving").encode())
-            log("Moving from: " + str(s1.get_pos()) + " to "+ str(pos))
-            utime.sleep(0.5)
-            updatepos = True
-            
-        elif endswitch():
+        
+        
+        if endswitch():
+            disable(1)
             s1.stop()
             
             if pos >= s1.get_pos():
                 s1.free_run(-1)
+                disable(0)
                 while endswitch.value() == 1: #wait till the switch is triggered
                     pass
                 
             elif pos <= s1.get_pos():
                 s1.free_run(1)
+                disable(0)
                 while endswitch.value() == 1: #wait till the switch is triggered
                     pass
             utime.sleep(0.5)
@@ -213,7 +198,18 @@ async def main(client):
             await client.publish(PUBLISH_TOPIC, str("Positioning error!").encode())
             log("Positioning error!")
             utime.sleep(5)
-            machine.reset()
+            await homing(client)
+            break
+        
+        elif s1.get_pos() != pos and not rain and not endswitch():
+            disable(0)
+            s1.target(pos)
+            await client.publish(PUBLISH_TOPIC, str("Moving").encode())
+            log("Moving from: " + str(s1.get_pos()) + " to "+ str(pos))
+            utime.sleep(0.5)
+            updatepos = True
+            
+        
             
         elif s1.get_pos() == pos and not rain and not endswitch() and updatepos:
             #log("Ready and no rain")
@@ -229,10 +225,8 @@ async def main(client):
             s1.target(0)
             await client.publish(PUBLISH_TOPIC, str("Raining").encode())
             utime.sleep(0.5)
-        
-        
-            
-      
+
+    
     while True and alarm():
         
         log("alarm")
@@ -242,6 +236,24 @@ async def main(client):
         utime.sleep(1)
         #reset()
 
+
+
+async def main(client):
+
+    try:
+        await client.connect()
+    except OSError:
+        print('Connection failed.')
+        return
+    
+    global homingneeded
+    while True and homingneeded == True:
+        await homing(client)
+        break
+    
+    while True:
+        await motion(client)
+    
 
 # Define configuration
 config['subs_cb'] = sub_cb
@@ -261,4 +273,5 @@ try:
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
     asyncio.new_event_loop()
+
 
