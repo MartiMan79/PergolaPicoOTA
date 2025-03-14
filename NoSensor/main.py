@@ -1,15 +1,19 @@
 #Version 4
 
 import machine
+import network
+import gc
 from machine import Pin
 from stepper import Stepper
 import utime
-from mqtt_as import MQTTClient
+from mqtt_as import MQTTClient, RP2
 from mqtt_local import wifi_led, blue_led, config
 import uasyncio as asyncio
 import os
 
-
+if RP2:
+    from sys import implementation
+    
 #Log declarations
 rtc=machine.RTC()
 FileName = 'log.txt'
@@ -28,7 +32,8 @@ CLIENT_ID = config["client_id"]
 
 SUBSCRIBE_TOPIC1 = str(CLIENT_ID)+"/set_angle"
 SUBSCRIBE_TOPIC2 = str(CLIENT_ID)+"/status"
-PUBLISH_TOPIC = str(CLIENT_ID)+"/status"
+PUBLISH_TOPIC1 = str(CLIENT_ID)+"/status"
+PUBLISH_TOPIC2 = str(CLIENT_ID)+"/info"
 
 #Rain detection
 #rain = Pin(16, Pin.IN, Pin.PULL_UP)
@@ -38,7 +43,7 @@ pos = 0
 oldTime = 0
 currentTime = 0
 rain = False
-
+rssi = -199  # Effectively zero signal in dB.
 
 #Logging
 try:
@@ -106,6 +111,22 @@ async def wifi_han(state):
     print('Wifi is ', 'up' if state else 'down')
     await asyncio.sleep(1)
 
+async def get_rssi():
+    global rssi
+    s = network.WLAN()
+    ssid = config["ssid"].encode("UTF8")
+    #while True:
+    try:
+        while True:
+            
+            rssi = [x[3] for x in s.scan() if x[0] == ssid][0]
+            
+            break
+        
+    except IndexError:  # ssid not found.
+        rssi = -199
+    await asyncio.sleep(30)
+        
 
 # Homing sequence
 async def homing(client):
@@ -115,7 +136,7 @@ async def homing(client):
         await asyncio.sleep(1)
         log('Homing')
 
-        await client.publish(PUBLISH_TOPIC, str("Homing").encode())
+        await client.publish(PUBLISH_TOPIC1, f"Homing", qos=1)
         
         
         LED_FileWrite(1)
@@ -128,7 +149,7 @@ async def homing(client):
                 pass
         else:
             disable(1)
-            await client.publish(PUBLISH_TOPIC, str("Homing failed!").encode())
+            await client.publish(PUBLISH_TOPIC1, f"Homing failed!", qos=1)
             log("Homing failed")
             return("Homing failed")
             
@@ -150,11 +171,11 @@ async def homing(client):
         s1.speed(1000) #return to default speed
         s1.track_target() #start stepper again
         disable(1)
-        await client.publish(PUBLISH_TOPIC, str("Homing Successful").encode())
+        await client.publish(PUBLISH_TOPIC1, f"Homing Successful", qos=1)
         log("Homing Successful")
         
         if alarm():
-            await client.publish(PUBLISH_TOPIC, str("DRIVE ALARM").encode())
+            await client.publish(PUBLISH_TOPIC1, f"DRIVE ALARM", qos=1)
             log("DRIVE ALARM")
             return
         LED_FileWrite(0)
@@ -165,12 +186,18 @@ async def homing(client):
 async def motion(client):
     
     updatepos = False
-    
+    s = "rssi: {}dB free: {}"
+    print('rssi: ',rssi)
+
     while True and not alarm():
         
+        gc.collect()
+        m = gc.mem_free()
+
         await client.subscribe(SUBSCRIBE_TOPIC1)
         await client.subscribe(SUBSCRIBE_TOPIC2)
-    
+        await client.publish(PUBLISH_TOPIC2, s.format(rssi, m), qos=1)
+        
         global rain
          
         if endswitch():
@@ -191,7 +218,7 @@ async def motion(client):
             utime.sleep(0.5)
             s1.stop()
             
-            await client.publish(PUBLISH_TOPIC, str("Positioning error!").encode())
+            await client.publish(PUBLISH_TOPIC1, f"Positioning error!", qos=1)
             log("Positioning error!")
             utime.sleep(5)
             await homing(client)
@@ -200,7 +227,7 @@ async def motion(client):
         elif s1.get_pos() != pos and not rain and not endswitch():
             disable(0)
             s1.target(pos)
-            await client.publish(PUBLISH_TOPIC, str("Moving").encode())
+            await client.publish(PUBLISH_TOPIC1, f"Moving", qos=1)
             log("Moving from: " + str(s1.get_pos()) + " to "+ str(pos))
             utime.sleep(0.5)
             updatepos = True
@@ -210,7 +237,7 @@ async def motion(client):
         elif s1.get_pos() == pos and not rain and not endswitch() and updatepos:
             #log("Ready and no rain")
             disable(1)
-            await client.publish(PUBLISH_TOPIC, str("Ready").encode())
+            await client.publish(PUBLISH_TOPIC1, f"Ready", qos=1)
             log("Ready")
             utime.sleep(0.5)
             updatepos = False
@@ -219,15 +246,16 @@ async def motion(client):
             #log("Raining")
             disable(0)
             s1.target(0)
-            await client.publish(PUBLISH_TOPIC, str("Raining").encode())
+            await client.publish(PUBLISH_TOPIC1, f"Raining", qos=1)
             utime.sleep(0.5)
-
+        
+        
     
     while True and alarm():
         
         log("alarm")
         disable(1)
-        await client.publish(PUBLISH_TOPIC, str("DRIVE alarm").encode())
+        await client.publish(PUBLISH_TOPIC1, f"DRIVE alarm", qos=1)
         log("DRIVE alarm")
         utime.sleep(1)
         await homing(client)
@@ -239,6 +267,7 @@ async def main(client):
 
     try:
         await client.connect()
+        await client.publish(PUBLISH_TOPIC2, f'Connected', qos=1)
     except OSError:
         print('Connection failed.')
         return
@@ -256,19 +285,22 @@ async def main(client):
 config['subs_cb'] = sub_cb
 config['wifi_coro'] = wifi_han
 config['clean'] = False
-#config['will'] = ('Info/result', f'Lost connection', False, 0)
+config['will'] = (PUBLISH_TOPIC2, f'Lost connection', False, 0)
 config['keepalive'] = 120
+
 
 # Set up client
 MQTTClient.DEBUG = False  # Optional
 client = MQTTClient(config)
 
 asyncio.create_task(heartbeat())
+asyncio.create_task(get_rssi())
 try:
     asyncio.run(main(client))
     
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
     asyncio.new_event_loop()
+
 
 
