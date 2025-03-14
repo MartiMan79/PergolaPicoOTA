@@ -76,8 +76,6 @@ def sub_cb(topic, msg, retained):
     global pos
     global rain
     
-    
-        
     if topic.decode() == SUBSCRIBE_TOPIC1:
         #log("correct subscribe")
         if not 0 <= int(msg.decode()) <= 34666:
@@ -109,15 +107,14 @@ async def wifi_han(state):
     await asyncio.sleep(1)
 
 
-
+# Homing sequence
 async def homing(client):
     
     
     while True:
         await asyncio.sleep(1)
         log('Homing')
-        #log(f"Begin connection with MQTT Broker :: {MQTT_BROKER}")
-        #mqttClient = MQTTClient(CLIENT_ID, MQTT_BROKER, keepalive=60)
+
         await client.publish(PUBLISH_TOPIC, str("Homing").encode())
         
         
@@ -159,11 +156,12 @@ async def homing(client):
         if alarm():
             await client.publish(PUBLISH_TOPIC, str("DRIVE ALARM").encode())
             log("DRIVE ALARM")
-            reset()
+            return
         LED_FileWrite(0)
         utime.sleep(1)
         break
-        
+
+# Standard operating sequence
 async def motion(client):
     
     updatepos = False
@@ -175,8 +173,6 @@ async def motion(client):
     
         global rain
          
-        
-        
         if endswitch():
             disable(1)
             s1.stop()
@@ -194,7 +190,7 @@ async def motion(client):
                     pass
             utime.sleep(0.5)
             s1.stop()
-            #disable(1)
+            
             await client.publish(PUBLISH_TOPIC, str("Positioning error!").encode())
             log("Positioning error!")
             utime.sleep(5)
@@ -234,7 +230,8 @@ async def motion(client):
         await client.publish(PUBLISH_TOPIC, str("DRIVE alarm").encode())
         log("DRIVE alarm")
         utime.sleep(1)
-        #reset()
+        await homing(client)
+        break
 
 
 
