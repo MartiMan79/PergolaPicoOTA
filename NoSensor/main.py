@@ -1,4 +1,4 @@
-#Version 5
+#Version 6
 
 import machine
 import network
@@ -139,27 +139,32 @@ async def homing(client):
 
         await client.publish(PUBLISH_TOPIC1, f"Homing", qos=1)
         
-        
-        LED_FileWrite(1)
-        s1.speed(500) #use low speed for the calibration
-        s1.free_run(-1) #move backwards
-        disable(0)
+        if endswitch():
+            s1.free_run(1)
+            disable(0)
+            while endswitch.value() == 1 and not alarm(): #wait till the switch is triggered
+                pass
+            #await client.publish(PUBLISH_TOPIC1, f"Homing failed!", qos=1)
+            #log("Homing failed")
+            #return("Homing failed")
         
         if not endswitch():
+            LED_FileWrite(1)
+            s1.speed(500) #use low speed for the calibration
+            s1.free_run(-1) #move backwards
+            disable(0)
+        
+        
             while endswitch.value() == 0 and not alarm(): #wait till the switch is triggered
                 pass
-        else:
-            disable(1)
-            await client.publish(PUBLISH_TOPIC1, f"Homing failed!", qos=1)
-            log("Homing failed")
-            return("Homing failed")
+        
             
         
         s1.stop() #stop as soon as the switch is triggered
         s1.overwrite_pos(0) #set position as 0 point
         s1.target(0) #set the target to the same value to avoid unwanted movement
         await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
-        homingneeded = False
+        homingneeded = True
         s1.free_run(1) #move forwards
     
         while endswitch.value() == 1: #wait till the switch is triggered
