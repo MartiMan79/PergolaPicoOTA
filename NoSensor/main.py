@@ -1,4 +1,4 @@
-#Version 4
+#Version 5
 
 import machine
 import network
@@ -33,7 +33,8 @@ CLIENT_ID = config["client_id"]
 SUBSCRIBE_TOPIC1 = str(CLIENT_ID)+"/set_angle"
 SUBSCRIBE_TOPIC2 = str(CLIENT_ID)+"/status"
 PUBLISH_TOPIC1 = str(CLIENT_ID)+"/status"
-PUBLISH_TOPIC2 = str(CLIENT_ID)+"/info"
+PUBLISH_TOPIC2 = str(CLIENT_ID)+"/actPos"
+PUBLISH_TOPIC3 = str(CLIENT_ID)+"/info"
 
 #Rain detection
 #rain = Pin(16, Pin.IN, Pin.PULL_UP)
@@ -83,7 +84,7 @@ def sub_cb(topic, msg, retained):
     
     if topic.decode() == SUBSCRIBE_TOPIC1:
         #log("correct subscribe")
-        if not 0 <= int(msg.decode()) <= 34666:
+        if not 0 <= int(msg.decode()) <= 36000:
             #log(str(msg.decode() + " is no INT"))
             pos = 0
         else:
@@ -157,7 +158,7 @@ async def homing(client):
         s1.stop() #stop as soon as the switch is triggered
         s1.overwrite_pos(0) #set position as 0 point
         s1.target(0) #set the target to the same value to avoid unwanted movement
-    
+        await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
         homingneeded = False
         s1.free_run(1) #move forwards
     
@@ -196,8 +197,8 @@ async def motion(client):
 
         await client.subscribe(SUBSCRIBE_TOPIC1)
         await client.subscribe(SUBSCRIBE_TOPIC2)
-        await client.publish(PUBLISH_TOPIC2, s.format(rssi, m), qos=1)
-        
+        await client.publish(PUBLISH_TOPIC3, s.format(rssi, m), qos=1)
+        #await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
         global rain
          
         if endswitch():
@@ -228,6 +229,7 @@ async def motion(client):
             disable(0)
             s1.target(pos)
             await client.publish(PUBLISH_TOPIC1, f"Moving", qos=1)
+            await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
             log("Moving from: " + str(s1.get_pos()) + " to "+ str(pos))
             utime.sleep(0.5)
             updatepos = True
@@ -238,6 +240,7 @@ async def motion(client):
             #log("Ready and no rain")
             disable(1)
             await client.publish(PUBLISH_TOPIC1, f"Ready", qos=1)
+            await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
             log("Ready")
             utime.sleep(0.5)
             updatepos = False
@@ -267,7 +270,7 @@ async def main(client):
 
     try:
         await client.connect()
-        await client.publish(PUBLISH_TOPIC2, f'Connected', qos=1)
+        await client.publish(PUBLISH_TOPIC3, f'Connected', qos=1)
     except OSError:
         print('Connection failed.')
         return
@@ -285,7 +288,7 @@ async def main(client):
 config['subs_cb'] = sub_cb
 config['wifi_coro'] = wifi_han
 config['clean'] = False
-config['will'] = (PUBLISH_TOPIC2, f'Lost connection', False, 0)
+config['will'] = (PUBLISH_TOPIC3, f'Lost connection', False, 0)
 config['keepalive'] = 120
 
 
