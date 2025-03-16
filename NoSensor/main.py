@@ -1,4 +1,4 @@
-#Version 10
+#Version 11
 
 import machine
 import network
@@ -141,7 +141,7 @@ async def homing(client):
         await client.publish(PUBLISH_TOPIC1, f"Homing", qos=1)
         
 #Crash recovery
-        if endswitch():
+        if endswitch() and not alarm():
             await client.publish(PUBLISH_TOPIC1, f"Crash detected, recovery started", qos=1)
             LED_FileWrite(1)
             s1.speed(1000) #use low speed for the calibration
@@ -167,23 +167,20 @@ async def homing(client):
                     s1.stop()
                     disable(1)
                     print("Failed")
-                    await client.publish(PUBLISH_TOPIC1, f"Recovery failed!", qos=1)
+                    await client.publish(PUBLISH_TOPIC1, f"Recovery failed! Entered sleep until reboot", qos=1)
                     utime.sleep(5)
-                    sys.exit("Recovery failed!")
+                    machine.lightsleep()
                 utime.sleep(1)
                 pass
             await client.publish(PUBLISH_TOPIC1, f"Recovery successful, homing started", qos=1)
             print("Recovery successful, start homing")
             
-            
-        if not endswitch():
+#Homing            
+        if not endswitch() and not alarm():
             LED_FileWrite(1)
             s1.speed(500) #use low speed for the calibration
             s1.free_run(-1) #move backwards
             disable(0)
-            
-            
-                
             while endswitch.value() == 0 and not alarm(): #wait till the switch is triggered
                 pass
         
@@ -191,10 +188,19 @@ async def homing(client):
             s1.overwrite_pos(0) #set position as 0 point
             s1.target(0) #set the target to the same value to avoid unwanted movement
             await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
-            homingneeded = True
+            homingneeded = False
             s1.free_run(1) #move forwards
 
-            while endswitch.value() == 1: #wait till the switch is triggered
+            now = utime.time()
+            delay = 3
+            while endswitch.value() == 1 and not alarm(): #wait till the switch is triggered
+                if utime.time() > now + delay:
+                    s1.stop()
+                    disable(1)
+                    print("Failed")
+                    await client.publish(PUBLISH_TOPIC1, f"Homing failed!", qos=1)
+                    utime.sleep(5)
+                    machine.soft_reset()
                 pass
         
             utime.sleep(0.1)        
@@ -210,8 +216,9 @@ async def homing(client):
         if alarm():
             await client.publish(PUBLISH_TOPIC1, f"DRIVE ALARM", qos=1)
             s1.stop()
+            disable(1)
             log("DRIVE ALARM")
-            machine.reset()
+            await homing(client)
         LED_FileWrite(0)
         utime.sleep(1)
         break
@@ -305,13 +312,11 @@ async def motion(client):
     
     while True and alarm():
         
-        log("alarm")
-        s1.stop()
-        disable(1)
-        await client.publish(PUBLISH_TOPIC1, f"DRIVE alarm", qos=1)
-        log("DRIVE alarm")
-        utime.sleep(1)
-        machine.reset()
+            await client.publish(PUBLISH_TOPIC1, f"DRIVE ALARM", qos=1)
+            s1.stop()
+            disable(1)
+            log("DRIVE ALARM")
+            await homing(client)
 
 
 
