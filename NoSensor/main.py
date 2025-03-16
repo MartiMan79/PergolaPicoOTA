@@ -10,6 +10,7 @@ from mqtt_as import MQTTClient, RP2
 from mqtt_local import wifi_led, blue_led, config
 import uasyncio as asyncio
 import os
+import sys
 
 if RP2:
     from sys import implementation
@@ -151,8 +152,10 @@ async def homing(client):
             delay = 10
             while endswitch.value() == 1 and not alarm(): #wait till the switch is triggered
                 if utime.time() > now + delay:
+                    s1.stop()
                     print("Changing direction")
                     break
+                utime.sleep(1)
                 pass
             
             
@@ -161,10 +164,13 @@ async def homing(client):
             delay = 10
             while endswitch.value() == 1 and not alarm(): #wait till the switch is triggered
                 if utime.time() > now + delay:
+                    s1.stop()
+                    disable(1)
                     print("Failed")
                     await client.publish(PUBLISH_TOPIC1, f"Recovery failed!", qos=1)
                     utime.sleep(5)
-                    machine.reset()
+                    sys.exit("Recovery failed!")
+                utime.sleep(1)
                 pass
             await client.publish(PUBLISH_TOPIC1, f"Recovery successful, homing started", qos=1)
             print("Recovery successful, start homing")
@@ -191,7 +197,7 @@ async def homing(client):
             while endswitch.value() == 1: #wait till the switch is triggered
                 pass
         
-            utime.sleep(0.05)        
+            utime.sleep(0.1)        
             s1.stop() #stop as soon as the switch is triggered
             s1.overwrite_pos(0) #set position as 0 point
             s1.target(0) #set the target to the same value to avoid unwanted movement
@@ -233,13 +239,31 @@ async def motion(client):
             if pos >= s1.get_pos():
                 s1.free_run(-1)
                 disable(0)
+                now = utime.time()
+                delay = 3           
                 while endswitch.value() == 1: #wait till the switch is triggered
+                    if utime.time() > now + delay:
+                        print("Failed")
+                        await client.publish(PUBLISH_TOPIC1, f"Recovery failed!", qos=1)
+                        s1.stop()
+                        disable(1)
+                        utime.sleep(5)
+                        sys.exit("Recovery failed!")
                     pass
                 
             elif pos <= s1.get_pos():
                 s1.free_run(1)
                 disable(0)
+                now = utime.time()
+                delay = 3           
                 while endswitch.value() == 1: #wait till the switch is triggered
+                    if utime.time() > now + delay:
+                        print("Failed")
+                        await client.publish(PUBLISH_TOPIC1, f"Recovery failed!", qos=1)
+                        s1.stop()
+                        disable(1)
+                        utime.sleep(5)
+                        sys.exit("Recovery failed!")
                     pass
             utime.sleep(0.5)
             s1.stop()
@@ -331,7 +355,3 @@ try:
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
     asyncio.new_event_loop()
-
-
-
-
