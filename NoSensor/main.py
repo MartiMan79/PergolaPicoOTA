@@ -1,4 +1,4 @@
-#Version 8
+#Version 9
 
 import machine
 import network
@@ -85,7 +85,7 @@ def sub_cb(topic, msg, retained):
     if topic.decode() == SUBSCRIBE_TOPIC1:
         #log("correct subscribe")
         if not 0 <= int(msg.decode()) <= 36000:
-            #log(str(msg.decode() + " is no INT"))
+            print(str(msg.decode() + " is no INT"))
             pos = 0
         else:
             pos = int(msg.decode())
@@ -295,7 +295,7 @@ config['keepalive'] = 120
 
 
 # Set up client
-MQTTClient.DEBUG = False  # Optional
+MQTTClient.DEBUG = True  # Optional
 client = MQTTClient(config)
 
 asyncio.create_task(heartbeat())
@@ -306,6 +306,7 @@ try:
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
     asyncio.new_event_loop()
+
 
 
 
