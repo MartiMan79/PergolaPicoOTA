@@ -1,4 +1,4 @@
-#Version 7
+#Version 8
 
 import machine
 import network
@@ -270,8 +270,8 @@ async def main(client):
 
     try:
         await client.connect()
-        await client.subscribe(SUBSCRIBE_TOPIC1)
-        await client.subscribe(SUBSCRIBE_TOPIC2)
+        await client.subscribe(SUBSCRIBE_TOPIC1, qos=1)
+        await client.subscribe(SUBSCRIBE_TOPIC2, qos=1)
         await client.publish(PUBLISH_TOPIC3, f'Connected', qos=1)
     except OSError:
         print('Connection failed.')
@@ -289,7 +289,7 @@ async def main(client):
 # Define configuration
 config['subs_cb'] = sub_cb
 config['wifi_coro'] = wifi_han
-config['clean'] = False
+config['clean'] = True
 config['will'] = (PUBLISH_TOPIC3, f'Lost connection', False, 0)
 config['keepalive'] = 120
 
