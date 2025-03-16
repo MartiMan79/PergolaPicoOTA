@@ -1,4 +1,4 @@
-#Version 6
+#Version 7
 
 import machine
 import network
@@ -140,13 +140,11 @@ async def homing(client):
         await client.publish(PUBLISH_TOPIC1, f"Homing", qos=1)
         
         if endswitch():
-            s1.free_run(1)
-            disable(0)
-            while endswitch.value() == 1 and not alarm(): #wait till the switch is triggered
-                pass
-            #await client.publish(PUBLISH_TOPIC1, f"Homing failed!", qos=1)
-            #log("Homing failed")
-            #return("Homing failed")
+            
+            disable(1)
+            await client.publish(PUBLISH_TOPIC1, f"Homing failed!", qos=1)
+            log("Homing failed")
+            return("Homing failed")
         
         if not endswitch():
             LED_FileWrite(1)
@@ -183,7 +181,7 @@ async def homing(client):
         if alarm():
             await client.publish(PUBLISH_TOPIC1, f"DRIVE ALARM", qos=1)
             log("DRIVE ALARM")
-            return
+            machine.reset()
         LED_FileWrite(0)
         utime.sleep(1)
         break
@@ -200,8 +198,6 @@ async def motion(client):
         gc.collect()
         m = gc.mem_free()
 
-        await client.subscribe(SUBSCRIBE_TOPIC1)
-        await client.subscribe(SUBSCRIBE_TOPIC2)
         await client.publish(PUBLISH_TOPIC3, s.format(rssi, m), qos=1)
         #await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
         global rain
@@ -266,8 +262,7 @@ async def motion(client):
         await client.publish(PUBLISH_TOPIC1, f"DRIVE alarm", qos=1)
         log("DRIVE alarm")
         utime.sleep(1)
-        await homing(client)
-        break
+        machine.reset()
 
 
 
@@ -275,6 +270,8 @@ async def main(client):
 
     try:
         await client.connect()
+        await client.subscribe(SUBSCRIBE_TOPIC1)
+        await client.subscribe(SUBSCRIBE_TOPIC2)
         await client.publish(PUBLISH_TOPIC3, f'Connected', qos=1)
     except OSError:
         print('Connection failed.')
