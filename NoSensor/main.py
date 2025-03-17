@@ -11,14 +11,11 @@ from mqtt_local import wifi_led, blue_led, config
 import uasyncio as asyncio
 import os
 import sys
+from log import logger
 
 if RP2:
     from sys import implementation
     
-#Log declarations
-rtc=machine.RTC()
-FileName = 'log.txt'
-
 
 # define motor controller pins
 s1 = Stepper(18,19,steps_per_rev=96000,speed_sps=1000)
@@ -47,36 +44,8 @@ currentTime = 0
 rain = False
 rssi = -199  # Effectively zero signal in dB.
 
-#Logging
-try:
-    os.stat(FileName)
-    print("File Exists")
-except:
-    print("File Missing")
-    f = open(FileName, "w")
-    f.close()
-    
-def log(loginfo:str):
-    # Format the timestamp
-    LED_FileWrite(1)
-    timestamp=rtc.datetime()
-    timestring="%04d-%02d-%02d %02d:%02d:%02d"%(timestamp[0:3] + timestamp[4:7])
-    # Check the file size
-    filestats = os.stat(FileName)
-    filesize = filestats[6]
-    LED_FileWrite(0)
-
-    if(filesize<200000):
-        try:
-            
-            log = timestring +" "+ str(filesize) +" "+ loginfo +"\n"
-            print(log)
-            with open(FileName, "at") as f:
-                f.write(log)
-            
-        except:
-            print("Problem saving file")
-
+def dprint(*args):
+        logger.debug(*args)
 
 # Received messages from subscriptions will be delivered to this callback
 def sub_cb(topic, msg, retained):
@@ -84,7 +53,7 @@ def sub_cb(topic, msg, retained):
     global rain
     
     if topic.decode() == SUBSCRIBE_TOPIC1:
-        #log("correct subscribe")
+        
         if not 0 <= int(msg.decode()) <= 36000:
             print(str(msg.decode() + " is no INT"))
             pos = 0
@@ -97,7 +66,7 @@ def sub_cb(topic, msg, retained):
         else:
             rain = False
     
-    log(str(topic + ": " + msg))
+    dprint(str(topic + ": " + msg))
     utime.sleep(1)   
 
 # Demonstrate scheduler is operational.
@@ -109,8 +78,13 @@ async def heartbeat():
         s = not s
 
 async def wifi_han(state):
+    s = "rssi: {}dB"
     wifi_led(not state)
-    print('Wifi is ', 'up' if state else 'down')
+    if state:
+        dprint('Wifi is up')
+        dprint(s.format(rssi))
+    else:
+        dprint('Wifi is down')    
     await asyncio.sleep(1)
 
 async def get_rssi():
@@ -136,13 +110,15 @@ async def homing(client):
     
     while True:
         await asyncio.sleep(1)
-        log('Homing')
+        dprint('Homing')
 
         await client.publish(PUBLISH_TOPIC1, f"Homing", qos=1)
+        dprint("Homing")
         
 #Crash recovery
         if endswitch() and not alarm():
             await client.publish(PUBLISH_TOPIC1, f"Crash detected, recovery started", qos=1)
+            dprint("Crash detected, recovery started")
             LED_FileWrite(1)
             s1.speed(1000) #use low speed for the calibration
              
@@ -153,7 +129,7 @@ async def homing(client):
             while endswitch.value() == 1 and not alarm(): #wait till the switch is triggered
                 if utime.time() > now + delay:
                     s1.stop()
-                    print("Changing direction")
+                    dprint("Changing direction")
                     break
                 utime.sleep(1)
                 pass
@@ -166,14 +142,14 @@ async def homing(client):
                 if utime.time() > now + delay:
                     s1.stop()
                     disable(1)
-                    print("Failed")
+                    dprint("Recovery failed! Entered sleep until reboot")
                     await client.publish(PUBLISH_TOPIC1, f"Recovery failed! Entered sleep until reboot", qos=1)
                     utime.sleep(5)
                     machine.lightsleep()
                 utime.sleep(1)
                 pass
             await client.publish(PUBLISH_TOPIC1, f"Recovery successful, homing started", qos=1)
-            print("Recovery successful, start homing")
+            dprint("Recovery successful, start homing")
             
 #Homing            
         if not endswitch() and not alarm():
@@ -197,7 +173,7 @@ async def homing(client):
                 if utime.time() > now + delay:
                     s1.stop()
                     disable(1)
-                    print("Failed")
+                    dprint("Homing failed!")
                     await client.publish(PUBLISH_TOPIC1, f"Homing failed!", qos=1)
                     utime.sleep(5)
                     machine.soft_reset()
@@ -210,14 +186,14 @@ async def homing(client):
             s1.speed(1000) #return to default speed
             s1.track_target() #start stepper again
             disable(1)
-            await client.publish(PUBLISH_TOPIC1, f"Homing Successful", qos=1)
-            log("Homing Successful")
+            await client.publish(PUBLISH_TOPIC1, f"Homing successful", qos=1)
+            dprint("Homing successful")
             
         if alarm():
             await client.publish(PUBLISH_TOPIC1, f"DRIVE ALARM", qos=1)
             s1.stop()
             disable(1)
-            log("DRIVE ALARM")
+            dprint("DRIVE ALARM")
             await homing(client)
         LED_FileWrite(0)
         utime.sleep(1)
@@ -227,8 +203,8 @@ async def homing(client):
 async def motion(client):
     
     updatepos = False
-    s = "rssi: {}dB free: {}"
-    print('rssi: ',rssi)
+    s = "rssi: {}dB"
+    
 
     while True and not alarm():
         
@@ -237,6 +213,7 @@ async def motion(client):
 
         await client.publish(PUBLISH_TOPIC3, s.format(rssi, m), qos=1)
         #await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
+        
         global rain
          
         if endswitch():
@@ -250,7 +227,7 @@ async def motion(client):
                 delay = 3           
                 while endswitch.value() == 1: #wait till the switch is triggered
                     if utime.time() > now + delay:
-                        print("Failed")
+                        dprint("Recovery failed")
                         await client.publish(PUBLISH_TOPIC1, f"Recovery failed!", qos=1)
                         s1.stop()
                         disable(1)
@@ -265,7 +242,7 @@ async def motion(client):
                 delay = 3           
                 while endswitch.value() == 1: #wait till the switch is triggered
                     if utime.time() > now + delay:
-                        print("Failed")
+                        dprint("Recovery failed")
                         await client.publish(PUBLISH_TOPIC1, f"Recovery failed!", qos=1)
                         s1.stop()
                         disable(1)
@@ -276,7 +253,7 @@ async def motion(client):
             s1.stop()
             
             await client.publish(PUBLISH_TOPIC1, f"Positioning error!", qos=1)
-            log("Positioning error!")
+            dprint("Positioning error!")
             utime.sleep(5)
             await homing(client)
             break
@@ -284,38 +261,39 @@ async def motion(client):
         elif s1.get_pos() != pos and not rain and not endswitch():
             disable(0)
             s1.target(pos)
-            await client.publish(PUBLISH_TOPIC1, f"Moving", qos=1)
+            await client.publish(PUBLISH_TOPIC1, f"Moving from: " + str(s1.get_pos()) + " to "+ str(pos), qos=1)
             await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
-            log("Moving from: " + str(s1.get_pos()) + " to "+ str(pos))
+            dprint("Moving from: " + str(s1.get_pos()) + " to "+ str(pos))
             utime.sleep(0.5)
             updatepos = True
             
         
             
         elif s1.get_pos() == pos and not rain and not endswitch() and updatepos:
-            #log("Ready and no rain")
+            #dprint("Ready and no rain")
             disable(1)
             await client.publish(PUBLISH_TOPIC1, f"Ready", qos=1)
             await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
-            log("Ready")
+            dprint("Ready")
+            dprint(s.format(rssi))
             utime.sleep(0.5)
             updatepos = False
                     
         elif rain and not endswitch():
-            #log("Raining")
+            #dprint("Raining")
             disable(0)
             s1.target(0)
             await client.publish(PUBLISH_TOPIC1, f"Raining", qos=1)
+            dprint("Raining")
             utime.sleep(0.5)
         
-        
-    
+            
     while True and alarm():
         
             await client.publish(PUBLISH_TOPIC1, f"DRIVE ALARM", qos=1)
             s1.stop()
             disable(1)
-            log("DRIVE ALARM")
+            dprint("DRIVE ALARM")
             await homing(client)
 
 
@@ -327,8 +305,9 @@ async def main(client):
         await client.subscribe(SUBSCRIBE_TOPIC1, qos=1)
         await client.subscribe(SUBSCRIBE_TOPIC2, qos=1)
         await client.publish(PUBLISH_TOPIC3, f'Connected', qos=1)
+        dprint("Ready")
     except OSError:
-        print('Connection failed.')
+        dprint('Connection failed.')
         return
     
     global homingneeded
