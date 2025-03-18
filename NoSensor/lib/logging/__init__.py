@@ -1,4 +1,4 @@
-import utime
+import time
 import sys
 import uio
 
@@ -188,7 +188,7 @@ class FileHandler(StreamHandler):
 
 class Formatter:
 
-    converter = utime.localtime
+    converter = time.localtime
 
     def __init__(self, fmt=None, datefmt=None, style="%"):
         self.fmt = fmt or "%(message)s"
@@ -234,7 +234,7 @@ class Formatter:
 
     def formatTime(self, record, datefmt=None):
         assert datefmt is None  # datefmt is not supported
-        ct = utime.localtime(record.created)
+        ct = time.localtime(record.created)
         return "{0}-{1}-{2} {3}:{4}:{5}".format(*ct)
 
     def formatException(self, exc_info):
@@ -248,7 +248,8 @@ class LogRecord:
     def __init__(
         self, name, level, pathname, lineno, msg, args, exc_info, func=None, sinfo=None
     ):
-        ct = utime.time()
+        
+        ct = time.time()
         self.created = ct
         self.msecs = (ct - int(ct)) * 1000
         self.name = name
