@@ -472,7 +472,7 @@ async def OTA():
     
     # Check for OTA updates
     repo_name = "PergolaPicoOTA"
-    branch = "refs/heads/main/NoSensor"
+    branch = "refs/heads/main/"
     firmware_url = f"https://github.com/MartiMan79/{repo_name}/{branch}/"
     ota_updater = OTAUpdater(firmware_url,
                              "boot.py",
