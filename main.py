@@ -1,4 +1,4 @@
-#Version 12
+#Version 11
 
 import gc
 from log import logger
@@ -31,16 +31,16 @@ rain = Pin(16, Pin.IN, Pin.PULL_UP)
 
 # Default  MQTT_BROKER to connect to
 #MQTT Details
+GROUP_ID = config["group_id"]
 CLIENT_ID = config["client_id"]
-DEVICE_ID = config["device_id"]
 
 SUBSCRIBE_TOPIC1 = str(CLIENT_ID)+"/set_angle"
 SUBSCRIBE_TOPIC2 = str(CLIENT_ID)+"/status"
-SUBSCRIBE_TOPIC3 = str(DEVICE_ID)+"/general"
+SUBSCRIBE_TOPIC3 = str(GROUP_ID)+"/general"
 PUBLISH_TOPIC1 = str(CLIENT_ID)+"/status"
 PUBLISH_TOPIC2 = str(CLIENT_ID)+"/actPos"
 PUBLISH_TOPIC3 = str(CLIENT_ID)+"/info"
-PUBLISH_TOPIC4 = str(DEVICE_ID)+"/general"
+PUBLISH_TOPIC4 = str(GROUP_ID)+"/general"
 
 # Global values
 gc_text = ''
@@ -52,9 +52,11 @@ ERRORLOGFILENAME = 'errorlog.txt'
 
 homingneeded = True
 pos = 0
+setangle = 0
 oldTime = 0
 currentTime = 0
 rssi = -199  # Effectively zero signal in dB.
+oldval = False
 
 html = """<!DOCTYPE html>
 <html>
@@ -67,6 +69,22 @@ html = """<!DOCTYPE html>
 </html>
 """
 
+#Inverse input
+async def swap_io():
+    global oldval
+    global pos
+    
+    if 'rain' in CLIENT_ID:
+        if not rain() and not oldval:
+            dprint('Raining')
+            pos = 0
+            await client.publish(PUBLISH_TOPIC4, f"Raining", qos=1)
+            oldval = True
+        elif rain() and oldval:
+            dprint('Ready')
+            pos = setangle
+            await client.publish(PUBLISH_TOPIC4, f"Ready", qos=1)
+            oldval = False
 
 async def log_handling():
 
@@ -191,22 +209,28 @@ def dprint(*args):
 def sub_cb(topic, msg, retained):
     global pos
     global raining
+    global setangle
     
     if topic.decode() == SUBSCRIBE_TOPIC1:
         
         if not 0 <= int(msg.decode()) <= 36000:
             print(str(msg.decode() + " is no INT"))
-            pos = 0
+            setangle = 0
         else:
-            pos = int(msg.decode())
+            setangle = int(msg.decode())
     
     if not 'rain' in CLIENT_ID:
         
         if topic.decode() == SUBSCRIBE_TOPIC3:
+            #print('topic3', msg.decode())
             if msg.decode() == "Raining":
-                raining = True
+                pos = 0
             else:
-                raining = False
+               pos = setangle
+        else:
+            pos = setangle
+    else:
+        pos = setangle
     
     dprint(str(topic + ": " + msg))
     time.sleep(1)   
@@ -263,16 +287,6 @@ async def get_ntp():
         
     print("machine time is:",(time.localtime()))
 
-#Inverse input
-async def swap_io():
-    
-    global raining
-    if 'rain' in CLIENT_ID:
-        if rain():
-            raining = False
-        elif not rain():
-            raining = True
-    
 
 # Homing sequence
 async def homing(client):
@@ -280,8 +294,6 @@ async def homing(client):
     
     while True:
         await asyncio.sleep(1)
-        dprint('Homing')
-
         await client.publish(PUBLISH_TOPIC1, f"Homing", qos=1)
         dprint("Homing")
         
@@ -373,7 +385,7 @@ async def homing(client):
 async def motion(client):
     
     updatepos = False
-    updaterain = False
+    
     s = "rssi: {}dB"
     
 
@@ -427,38 +439,25 @@ async def motion(client):
             await homing(client)
             break
         
-        elif s1.get_pos() != pos and not raining and not endswitch():
+        elif s1.get_pos() != pos and not endswitch():
             disable(0)
             s1.target(pos)
             await client.publish(PUBLISH_TOPIC1, f"Moving from: " + str(s1.get_pos()) + " to "+ str(pos), qos=1)
             await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
-            await client.publish(PUBLISH_TOPIC4, f"Ready", qos=1)
             dprint("Moving from: " + str(s1.get_pos()) + " to "+ str(pos))
             time.sleep(0.5)
             updatepos = True
             updaterain = False
             
-        elif s1.get_pos() == pos and not raining and not endswitch() and updatepos:
-            #dprint("Ready and no rain")
+        elif s1.get_pos() == pos and not endswitch() and updatepos:
             disable(1)
             await client.publish(PUBLISH_TOPIC1, f"Ready", qos=1)
             await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
-            await client.publish(PUBLISH_TOPIC4, f"Ready", qos=1)
             dprint("Ready")
             dprint(s.format(rssi))
             time.sleep(0.5)
             updatepos = False
-            updaterain = False
-            
-        elif raining and not endswitch() and not updaterain:
-            
-            dprint("Raining")
-            disable(0)
-            s1.target(0)
-            await client.publish(PUBLISH_TOPIC4, f"Raining", qos=1)
-            time.sleep(0.5)
-            updaterain = True
-        
+                
     while True and alarm():
         
             await client.publish(PUBLISH_TOPIC1, f"DRIVE ALARM", qos=1)
@@ -472,7 +471,7 @@ async def OTA():
     
     # Check for OTA updates
     repo_name = "PergolaPicoOTA"
-    branch = "refs/heads/main/"
+    branch = "refs/heads/main/NoSensor"
     firmware_url = f"https://github.com/MartiMan79/{repo_name}/{branch}/"
     ota_updater = OTAUpdater(firmware_url,
                              "boot.py",
@@ -491,16 +490,15 @@ async def main(client):
   
     try:
         await client.connect()
+        await get_ntp()
+        await OTA()
         await client.subscribe(SUBSCRIBE_TOPIC1, qos=1)
         await client.subscribe(SUBSCRIBE_TOPIC2, qos=1)
         await client.subscribe(SUBSCRIBE_TOPIC3, qos=1)
         await client.publish(PUBLISH_TOPIC3, f'Connected', qos=1)
         await client.publish(PUBLISH_TOPIC4, f'Ready', qos=1)
-        await get_ntp()
-        await OTA()
         dprint("Ready")
-        
-        
+       
     except OSError:
         dprint('Connection failed.')
         return
@@ -518,14 +516,16 @@ async def main(client):
 config['subs_cb'] = sub_cb
 config['wifi_coro'] = wifi_han
 config['clean'] = True
-config['will'] = (PUBLISH_TOPIC3, f'Lost connection', False, 0)
+if 'rain' in CLIENT_ID:
+    config['will'] = (PUBLISH_TOPIC4, f'pico_w_pergola/rain_sensor lost connection', False, 0)
+elif not 'rain' in CLIENT_ID:
+    config['will'] = (PUBLISH_TOPIC4, f'pico_w_pergola/no_sensor lost connection', False, 0)
 config['keepalive'] = 120
 
 
 # Set up client
-MQTTClient.DEBUG = False  # Optional
+MQTTClient.DEBUG = True  # Optional
 client = MQTTClient(config)
-
 
 asyncio.create_task(heartbeat())
 asyncio.create_task(get_rssi())
@@ -537,4 +537,5 @@ try:
     
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
-    asyncio.new_event_loop()
+    asyncio.main(client)
+    

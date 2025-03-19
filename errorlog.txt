@@ -1,0 +1,2 @@
+serve_client error @ 09:26:56: [Errno 2] ENOENT
+main loop error: name 'state' isn't defined
