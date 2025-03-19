@@ -291,7 +291,8 @@ async def get_ntp():
 # Homing sequence
 async def homing(client):
     
-    
+    global homingneeded
+
     while True:
         await asyncio.sleep(1)
         await client.publish(PUBLISH_TOPIC1, f"Homing", qos=1)
@@ -384,6 +385,7 @@ async def homing(client):
 # Standard operating sequence
 async def motion(client):
     
+
     updatepos = False
     
     s = "rssi: {}dB"
@@ -467,11 +469,10 @@ async def motion(client):
             await homing(client)
 
 async def OTA():
-    global gc_text, tz_offset
     
     # Check for OTA updates
     repo_name = "PergolaPicoOTA"
-    branch = "refs/heads/main/NoSensor"
+    branch = "refs/heads/main"
     firmware_url = f"https://github.com/MartiMan79/{repo_name}/{branch}/"
     ota_updater = OTAUpdater(firmware_url,
                              "boot.py",
@@ -490,25 +491,29 @@ async def main(client):
   
     try:
         await client.connect()
-        await get_ntp()
-        await OTA()
-        await client.subscribe(SUBSCRIBE_TOPIC1, qos=1)
-        await client.subscribe(SUBSCRIBE_TOPIC2, qos=1)
-        await client.subscribe(SUBSCRIBE_TOPIC3, qos=1)
-        await client.publish(PUBLISH_TOPIC3, f'Connected', qos=1)
-        await client.publish(PUBLISH_TOPIC4, f'Ready', qos=1)
-        dprint("Ready")
+
        
     except OSError:
         dprint('Connection failed.')
         return
     
-    global homingneeded
+    
+    await get_ntp()
+    await OTA()
+    await client.subscribe(SUBSCRIBE_TOPIC1, qos=1)
+    await client.subscribe(SUBSCRIBE_TOPIC2, qos=1)
+    await client.subscribe(SUBSCRIBE_TOPIC3, qos=1)
+    await client.publish(PUBLISH_TOPIC3, f'Connected', qos=1)
+    await client.publish(PUBLISH_TOPIC4, f'Ready', qos=1)
+    dprint("Startup ready")
+
     while True and homingneeded == True:
+        
         await homing(client)
         break
     
     while True:
+
         await motion(client)
         
 
@@ -516,10 +521,12 @@ async def main(client):
 config['subs_cb'] = sub_cb
 config['wifi_coro'] = wifi_han
 config['clean'] = True
+
 if 'rain' in CLIENT_ID:
     config['will'] = (PUBLISH_TOPIC4, f'pico_w_pergola/rain_sensor lost connection', False, 0)
 elif not 'rain' in CLIENT_ID:
     config['will'] = (PUBLISH_TOPIC4, f'pico_w_pergola/no_sensor lost connection', False, 0)
+
 config['keepalive'] = 120
 
 
@@ -537,5 +544,5 @@ try:
     
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
-    asyncio.main(client)
-    
+    asyncio.new_event_loop()    
+
