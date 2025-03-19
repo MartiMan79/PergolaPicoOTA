@@ -475,7 +475,6 @@ async def OTA():
     branch = "refs/heads/main"
     firmware_url = f"https://github.com/MartiMan79/{repo_name}/{branch}/"
     ota_updater = OTAUpdater(firmware_url,
-                             "boot.py",
                              "main.py",
                              "ota.py",
                              "log.py",
