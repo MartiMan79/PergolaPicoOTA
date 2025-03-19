@@ -523,7 +523,7 @@ config['keepalive'] = 120
 
 
 # Set up client
-MQTTClient.DEBUG = True  # Optional
+MQTTClient.DEBUG = False  # Optional
 client = MQTTClient(config)
 
 
