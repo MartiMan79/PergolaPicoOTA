@@ -543,6 +543,7 @@ try:
     asyncio.run(main(client))
     
 finally:
-    client.close()  # Prevent LmacRxBlk:1 errors
-    asyncio.new_event_loop()    
+    machine.reset()
+    '''client.close()  # Prevent LmacRxBlk:1 errors
+    asyncio.new_event_loop()'''    
 
