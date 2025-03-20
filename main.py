@@ -449,7 +449,6 @@ async def motion(client):
             dprint("Moving from: " + str(s1.get_pos()) + " to "+ str(pos))
             time.sleep(0.5)
             updatepos = True
-            updaterain = False
             
         elif s1.get_pos() == pos and not endswitch() and updatepos:
             disable(1)
