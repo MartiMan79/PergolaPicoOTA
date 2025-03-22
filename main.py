@@ -548,7 +548,7 @@ config['keepalive'] = 120
 
 
 # Set up client
-MQTTClient.DEBUG = False  # Optional
+MQTTClient.DEBUG = True  # Optional
 client = MQTTClient(config)
 
 asyncio.create_task(heartbeat())
