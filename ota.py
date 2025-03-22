@@ -50,11 +50,10 @@ class OTAUpdater:
 
             filename = filename.split("/")[1]
             if not prefix1 in os.listdir():
-                print('dir not available')
+                print('Directory not available')
                 print(prefix1)
                 os.mkdir(prefix1)
-            else:
-                print('dir available')
+            #else: print('Directory available')
                 
             os.chdir(prefix1)
             print(filename)
@@ -66,11 +65,10 @@ class OTAUpdater:
             filename = filename.split("/")[2]
             os.chdir(prefix1)
             if not prefix2 in os.listdir():
-                print('dir not available')
+                print('Directory not available')
                 print(prefix2)
                 os.mkdir(prefix2)
-            else:
-                print('dir available')
+            #else: print('Directory available')
                 
             os.chdir(prefix2)
             print(filename)
@@ -84,11 +82,10 @@ class OTAUpdater:
             
             filename = filename.split("/")[3]
             if not prefix3 in os.listdir():
-                print('dir not available')
+                #print('Directory not available')
                 print(prefix3)
                 os.mkdir(prefix3)
-            else:
-                print('dir available')
+            #else: print('Directory available')
                 
             os.chdir(prefix3)
             print(filename)
@@ -105,12 +102,12 @@ class OTAUpdater:
             with open(f'_{filename}', 'w') as f:
                 f.write(new_code)
             print(f'Saved as _{filename}')
-            print(os.getcwd())
+            #print(os.getcwd())
             #go back to root
             if not os.getcwd() == "/":
                 
                 os.chdir("/")
-            print(os.getcwd)    
+            #print('Current directory: ', os.getcwd)    
                 
             return True
         
@@ -151,7 +148,7 @@ class OTAUpdater:
             # Overwrite current code with new
             for filename in self.filename_list:
                 count = 0
-                print(filename)
+                #print('Filename :', filename)
                 for char in filename:
                     if char == "/":
                         count += 1
