@@ -366,7 +366,7 @@ async def homing(client):
             s1.stop() #stop as soon as the switch is triggered
             s1.overwrite_pos(0) #set position as 0 point
             s1.target(0) #set the target to the same value to avoid unwanted movement
-            await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
+            await client.publish(PUBLISH_TOPIC2, str(int(s1.get_pos()*(135/36000))), qos=1)
             homingneeded = False
             s1.free_run(1) #move forwards
 
@@ -463,7 +463,7 @@ async def motion(client):
             disable(0)
             s1.target(pos)
             await client.publish(PUBLISH_TOPIC1, f"Moving from: " + str(s1.get_pos()) + " to "+ str(pos), qos=1)
-            await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()*(135/36000)), qos=1)
+            await client.publish(PUBLISH_TOPIC2, str(int(s1.get_pos()*(135/36000))), qos=1)
             dprint("Moving from: " + str(s1.get_pos()) + " to "+ str(pos))
             await asyncio.sleep(0.5)
             updatepos = True
@@ -471,7 +471,7 @@ async def motion(client):
         elif s1.get_pos() == pos and not endswitch() and updatepos:
             disable(1)
             await client.publish(PUBLISH_TOPIC1, f"Ready", qos=1)
-            await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()*(135/36000)), qos=1)
+            await client.publish(PUBLISH_TOPIC2, str(int(s1.get_pos()*(135/36000))), qos=1)
             dprint("Ready")
             dprint(s.format(rssi))
             await asyncio.sleep(0.5)
