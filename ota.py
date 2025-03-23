@@ -193,4 +193,3 @@ class OTAUpdater:
             machine.reset() 
         else:
             dprint('No new updates available.')
-

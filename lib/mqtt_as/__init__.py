@@ -91,7 +91,6 @@ class MsgQueue:
 
 config = {
     "client_id": hexlify(unique_id()),
-    "group_id": "",
     "server": None,
     "port": 0,
     "user": "",

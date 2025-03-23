@@ -8,7 +8,7 @@ logger.setLevel(logging.DEBUG)  # Set the logger's level to INFO
 # Set up a rotating file handler
 file_handler = RotatingFileHandler(
     'debug.log',          # Log file name
-    maxBytes=50000,    # Maximum size of a log file in bytes before rotation
+    maxBytes=20000,    # Maximum size of a log file in bytes before rotation
     backupCount=3       # Number of backup files to keep
 )
 

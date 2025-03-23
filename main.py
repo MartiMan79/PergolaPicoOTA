@@ -73,7 +73,7 @@ async def log_handling():
     local_time = time.localtime()
     global timestamp
     record("power-up @ (%d, %d, %d, %d, %d, %d, %d, %d)" % local_time)
-
+    print('logging')
     try:
         
         y = local_time[0]  # curr year
@@ -233,7 +233,7 @@ async def get_ntp():
         tm = time.localtime(time.mktime(time.localtime()) + utc_shift*3600)
         tm = tm[0:3] + (0,) + tm[3:6] + (0,)
         rtc.datetime(tm)
-    
+            
     except OSError as e:
         with open(ERRORLOGFILENAME, 'a') as file:
             file.write(f"OSError while trying to set time: {str(e)}\n")        
@@ -559,5 +559,4 @@ try:
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
     asyncio.new_event_loop() 
-
 
