@@ -60,7 +60,7 @@ oldval = 0
 html = """<!DOCTYPE html>
 <html>
     <head> <title>Pergola controller #2</title> </head>
-    <body> <h1>Pergola shading control #2</h1>
+    <body> <h1>Pergola shading control #2  <button onclick="myFunction()">Reboot now</button></h1>
         <h3>%s</h3>
         <h4>%s</h4>
         <pre>%s</pre>
