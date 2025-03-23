@@ -90,7 +90,7 @@ async def log_handling():
                 record(f"{timestamp} WiFi not connected")
                 
             elif wifi_han(state):
-                sync_rtc_to_ntp()
+                get_ntp()
                 await asyncio.sleep(1)
         
         # Print time on 30 min intervals
@@ -416,10 +416,7 @@ async def motion(client):
         await swap_io()
         gc.collect()
         m = gc.mem_free()
-        await client.publish(PUBLISH_TOPIC3, s.format(rssi, m), qos=1)
-        #await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
-        
-           
+                   
         if endswitch():
             s1.stop()
             disable(1)
@@ -548,7 +545,7 @@ config['keepalive'] = 120
 
 
 # Set up client
-MQTTClient.DEBUG = True  # Optional
+MQTTClient.DEBUG = False  # Optional
 client = MQTTClient(config)
 
 asyncio.create_task(heartbeat())
@@ -562,4 +559,5 @@ try:
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
     asyncio.new_event_loop() 
+
 
