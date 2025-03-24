@@ -347,7 +347,7 @@ async def reboot():
     if cmdReboot:
           
         await client.publish(PUBLISH_TOPIC1, f"Re-booting", qos=1)
-        asyncio.sleep(5)
+        await asyncio.sleep(5)
         machine.reset()      
         
 # Homing sequence
