@@ -275,6 +275,10 @@ def sub_cb(topic, msg, retained):
         else:
             setangle = int(msg.decode())
             
+    elif topic.decode() == SUBSCRIBE_TOPIC2:
+                        
+        if str(msg.decode()) == "Reboot":
+            reboot()
     
     elif topic.decode() == SUBSCRIBE_TOPIC3:
         if not 'rain' in CLIENT_ID:
@@ -283,6 +287,8 @@ def sub_cb(topic, msg, retained):
                 
             elif str(msg.decode()) == "Raining":
                 raining = True
+                
+            
 
 #Inverse input
 async def swap_io():
@@ -320,6 +326,8 @@ async def swap_io():
                 dprint('Raining')
                 oldval = 1
 
+      
+    
 # Homing sequence
 async def homing():
     
@@ -574,5 +582,3 @@ try:
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
     asyncio.new_event_loop() 
-
-
