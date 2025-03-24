@@ -55,6 +55,7 @@ rssi = -199  # Effectively zero signal in dB.
 raining = False
 oldval = 0
 connected = False
+cmdReboot = False
 
 # HTML file
 if 'rain' in CLIENT_ID:
@@ -82,9 +83,6 @@ elif not 'rain' in CLIENT_ID:
         </body>
     </html>
     """
-
-def reboot():
-    machine.reset()
 
 async def log_handling():
     
@@ -269,6 +267,7 @@ async def get_ntp():
 
 # If you connect with clean_session True, must re-subscribe (MQTT spec 3.1.2.4)
 async def conn_han(client):
+    
     await client.subscribe(SUBSCRIBE_TOPIC1, qos=1)
     await client.subscribe(SUBSCRIBE_TOPIC2, qos=1)
     await client.subscribe(SUBSCRIBE_TOPIC3, qos=1)
@@ -279,6 +278,7 @@ def sub_cb(topic, msg, retained):
     global pos
     global raining
     global setangle
+    global cmdReboot
     
     dprint(f'Topic: "{topic.decode()}" Message: "{msg.decode()}" Retained: {retained}')
     
@@ -293,7 +293,7 @@ def sub_cb(topic, msg, retained):
     elif topic.decode() == SUBSCRIBE_TOPIC2:
                         
         if str(msg.decode()) == "Reboot":
-            reboot()
+            cmdReboot = True
     
     elif topic.decode() == SUBSCRIBE_TOPIC3:
         if not 'rain' in CLIENT_ID:
@@ -341,8 +341,15 @@ async def swap_io():
                 dprint('Raining')
                 oldval = 1
 
-      
+async def reboot():
+    global cmdReboot
     
+    if cmdReboot:
+          
+        await client.publish(PUBLISH_TOPIC1, f"Re-booting", qos=1)
+        asyncio.sleep(5)
+        machine.reset()      
+        
 # Homing sequence
 async def homing():
     
@@ -446,6 +453,7 @@ async def motion():
     
 
     while True and not alarm():
+        
         await asyncio.sleep(0.5)
         await swap_io()
         gc.collect()
@@ -510,7 +518,10 @@ async def motion():
             dprint(s.format(rssi))
             await asyncio.sleep(0.5)
             updatepos = False
-                
+         
+        elif cmdReboot:
+             await reboot()
+             
     while True and alarm():
         
             await client.publish(PUBLISH_TOPIC1, f"DRIVE ALARM", qos=1)
@@ -597,6 +608,4 @@ try:
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
     asyncio.new_event_loop() 
-
-
 
