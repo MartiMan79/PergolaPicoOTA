@@ -12,7 +12,6 @@ from stepper import Stepper
 import sys
 import uasyncio as asyncio
 import time
-import _thread
 
 if RP2:
     from sys import implementation
