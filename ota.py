@@ -1,3 +1,4 @@
+import gc
 import urequests
 import os
 import json
@@ -38,7 +39,7 @@ class OTAUpdater:
 
     def fetch_new_code(self, filename):
         """ Fetch the code from the repo, returns False if not found."""
-    
+        gc.collect()
         # Fetch the latest code from the repo.
         self.firmware_url = self.repo_url + filename
         count = 0
@@ -121,7 +122,7 @@ class OTAUpdater:
 
     def check_for_updates(self):
         """ Check if updates are available. (Note: GitHub caches values for 5 min.)"""
-        
+        gc.collect()
         dprint(f'Checking for latest version... on {self.version_url}')
         response = urequests.get(self.version_url)
         
@@ -143,6 +144,7 @@ class OTAUpdater:
     
     def download_and_install_update_if_available(self):
         """ Check for updates, download and install them."""
+        gc.collect()
         if self.check_for_updates():
 
             # Fetch new code
@@ -193,3 +195,4 @@ class OTAUpdater:
             machine.reset() 
         else:
             dprint('No new updates available.')
+
