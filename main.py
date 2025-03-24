@@ -12,7 +12,7 @@ from stepper import Stepper
 import sys
 import uasyncio as asyncio
 import time
-
+import _thread
 
 if RP2:
     from sys import implementation
@@ -55,12 +55,13 @@ currentTime = 0
 rssi = -199  # Effectively zero signal in dB.
 raining = False
 oldval = 0
+connected = False
 
 # HTML file
 html = """<!DOCTYPE html>
 <html>
     <head> <title>Pergola controller #2</title> </head>
-    <body> <h1>Pergola shading control #2  <button onclick="reboot()">Reboot now</button></h1>
+    <body> <h1>Pergola shading control #2 <input type='button' value='reboot' onclick='update()'/> </h1>
         <h3>%s</h3>
         <h4>%s</h4>
         <pre>%s</pre>
@@ -71,11 +72,13 @@ def reboot():
     machine.reset()
 
 async def log_handling():
-
-    local_time = time.localtime()
+    
+    global connected
     global timestamp
+    
+    local_time = time.localtime()
     record("power-up @ (%d, %d, %d, %d, %d, %d, %d, %d)" % local_time)
-    print('logging')
+    
     try:
         
         y = local_time[0]  # curr year
@@ -86,12 +89,13 @@ async def log_handling():
         s = local_time[5]  # curr second
         
         timestamp = f"{h:02}:{m:02}:{s:02}"
+        
         # Test WiFi connection twice per minute
         if s in (15, 45):
-            if not wifi_han(state):
+            if not connected:
                 record(f"{timestamp} WiFi not connected")
                 
-            elif wifi_han(state):
+            elif connected:
                 get_ntp()
                 await asyncio.sleep(1)
         
@@ -132,7 +136,7 @@ async def log_handling():
 
     except Exception as e:
         with open(ERRORLOGFILENAME, 'a') as file:
-            file.write(f"main loop error: {str(e)}\n")
+            file.write(f"logging loop error: {str(e)}\n")
 
 
 
@@ -199,13 +203,16 @@ async def heartbeat():
         s = not s
 
 async def wifi_han(state):
+    global connected
     s = "rssi: {}dB"
     LED(not state)
     if state:
+        connected = True
         dprint('Wifi is up')
         dprint(s.format(rssi))
     else:
-        dprint('Wifi is down')    
+        dprint('Wifi is down')
+        connected = False
     await asyncio.sleep(1)
 
 async def get_rssi():
@@ -222,6 +229,9 @@ async def get_rssi():
         
     except IndexError:  # ssid not found.
         rssi = -199
+        with open(ERRORLOGFILENAME, 'a') as file:
+            file.write(f"ssid not found: {str(e)}\n")
+            
     await asyncio.sleep(30)
 
 async def get_ntp():
@@ -311,7 +321,7 @@ async def swap_io():
                 oldval = 1
 
 # Homing sequence
-async def homing(client):
+async def homing():
     
     global homingneeded
 
@@ -368,7 +378,7 @@ async def homing(client):
             s1.stop() #stop as soon as the switch is triggered
             s1.overwrite_pos(0) #set position as 0 point
             s1.target(0) #set the target to the same value to avoid unwanted movement
-            await client.publish(PUBLISH_TOPIC2, str(int(s1.get_pos()*(135/36000))), qos=1)
+            await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
             homingneeded = False
             s1.free_run(1) #move forwards
 
@@ -405,8 +415,7 @@ async def homing(client):
         break
 
 # Standard operating sequence
-async def motion(client):
-    
+async def motion():
 
     updatepos = False
     
@@ -465,7 +474,7 @@ async def motion(client):
             disable(0)
             s1.target(pos)
             await client.publish(PUBLISH_TOPIC1, f"Moving from: " + str(s1.get_pos()) + " to "+ str(pos), qos=1)
-            await client.publish(PUBLISH_TOPIC2, str(int(s1.get_pos()*(135/36000))), qos=1)
+            await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
             dprint("Moving from: " + str(s1.get_pos()) + " to "+ str(pos))
             await asyncio.sleep(0.5)
             updatepos = True
@@ -473,7 +482,7 @@ async def motion(client):
         elif s1.get_pos() == pos and not endswitch() and updatepos:
             disable(1)
             await client.publish(PUBLISH_TOPIC1, f"Ready", qos=1)
-            await client.publish(PUBLISH_TOPIC2, str(int(s1.get_pos()*(135/36000))), qos=1)
+            await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
             dprint("Ready")
             dprint(s.format(rssi))
             await asyncio.sleep(0.5)
@@ -502,7 +511,8 @@ async def OTA():
                              "lib/logging/__init__.py",
                              "lib/stepper/__init__.py",
                              )
-    ota_updater.download_and_install_update_if_available()     
+    ota_updater.download_and_install_update_if_available()
+    
 
 async def main(client):
 
@@ -514,22 +524,25 @@ async def main(client):
 
        
     except OSError:
-        dprint('Connection failed.')
+        
+        with open(ERRORLOGFILENAME, 'a') as file:
+            file.write(f"Connection failed: {str(e)}\n")
+        
         return
     
     
     await get_ntp()
     await OTA()
     dprint("Startup ready")
-
+    
     while True and homingneeded == True:
         
-        await homing(client)
+        await homing()
         break
     
     while True:
 
-        await motion(client)
+        await motion()
         
 
 # Define configuration
@@ -549,7 +562,7 @@ config['keepalive'] = 120
 # Set up client
 MQTTClient.DEBUG = False  # Optional
 client = MQTTClient(config)
-
+    
 asyncio.create_task(heartbeat())
 asyncio.create_task(get_rssi())
 asyncio.create_task(log_handling())
@@ -561,4 +574,5 @@ try:
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
     asyncio.new_event_loop() 
+
 
