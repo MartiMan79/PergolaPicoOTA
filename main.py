@@ -58,16 +58,32 @@ oldval = 0
 connected = False
 
 # HTML file
-html = """<!DOCTYPE html>
-<html>
-    <head> <title>Pergola controller #2</title> </head>
-    <body> <h1>Pergola shading control #2 <input type='button' value='reboot' onclick='update()'/> </h1>
-        <h3>%s</h3>
-        <h4>%s</h4>
-        <pre>%s</pre>
-    </body>
-</html>
-"""
+if 'rain' in CLIENT_ID:
+    
+    html = """<!DOCTYPE html>
+    <html>
+        <head> <title>Pergola controller with rain sensor</title> </head>
+        <body> <h1>Pergola shading control with rain sensor</h1>
+            <h3>%s</h3>
+            <h4>%s</h4>
+            <pre>%s</pre>
+        </body>
+    </html>
+    """
+    
+elif not 'rain' in CLIENT_ID:
+    
+    html = """<!DOCTYPE html>
+    <html>
+        <head> <title>Pergola controller</title> </head>
+        <body> <h1>Pergola shading control</h1>
+            <h3>%s</h3>
+            <h4>%s</h4>
+            <pre>%s</pre>
+        </body>
+    </html>
+    """
+
 def reboot():
     machine.reset()
 
@@ -582,3 +598,6 @@ try:
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
     asyncio.new_event_loop() 
+
+
+
