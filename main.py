@@ -93,6 +93,7 @@ async def log_handling():
     record("power-up @ (%d, %d, %d, %d, %d, %d, %d, %d)" % local_time)
     
     try:
+        gc.collect()
         
         y = local_time[0]  # curr year
         mo = local_time[1] # current month
@@ -157,6 +158,8 @@ async def serve_client(reader, writer):
     
     
     try:
+        gc.collect()
+        
         print("Client connected")
         request_line = await reader.readline()
         print("Request:", request_line)
@@ -197,6 +200,7 @@ async def serve_client(reader, writer):
 
 
 def record(line):
+    gc.collect()
     """Combined print and append to data file."""
     print(line)
     line += '\n'
@@ -204,7 +208,8 @@ def record(line):
         file.write(line)
 
 def dprint(*args):
-        logger.debug(*args)
+    gc.collect()
+    logger.debug(*args)
 
 
 # Demonstrate scheduler is operational.
@@ -248,9 +253,10 @@ async def get_rssi():
     await asyncio.sleep(30)
 
 async def get_ntp():
+    gc.collect()
     
     try:
-    
+            
         settime()
         rtc = machine.RTC()
         utc_shift = 1
@@ -279,7 +285,7 @@ def sub_cb(topic, msg, retained):
     global raining
     global setangle
     global cmdReboot
-    
+    gc.collect()
     dprint(f'Topic: "{topic.decode()}" Message: "{msg.decode()}" Retained: {retained}')
     
     if topic.decode() == SUBSCRIBE_TOPIC1:
@@ -310,6 +316,7 @@ async def swap_io():
     
     global oldval
     global pos
+    gc.collect()
 
     if 'rain' in CLIENT_ID:
         if not rain():
@@ -354,6 +361,7 @@ async def reboot():
 async def homing():
     
     global homingneeded
+    gc.collect()
 
     while True:
         await asyncio.sleep(1)
