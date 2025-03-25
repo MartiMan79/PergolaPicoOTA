@@ -312,7 +312,6 @@ def sub_cb(topic, msg, retained):
             cmdReboot = True
                         
         elif str(msg.decode()) == "Update":
-            print('cmdOTA: ', cmdOTA)
             cmdOTA = True
 
     
