@@ -540,6 +540,7 @@ async def motion():
             disable(1)
             await client.publish(PUBLISH_TOPIC1, f"Ready", qos=1)
             await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
+            await client.publish(PUBLISH_TOPIC3, s.format(rssi, m), qos=1)
             dprint("Ready")
             dprint("Moved to: "+ str(pos))
             dprint(s.format(rssi))
