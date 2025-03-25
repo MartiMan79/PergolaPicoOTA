@@ -34,10 +34,12 @@ CLIENT_ID = config["client_id"]
 SUBSCRIBE_TOPIC1 = str(GROUP_ID)+"/set_angle"
 SUBSCRIBE_TOPIC2 = str(CLIENT_ID)+"/status"
 SUBSCRIBE_TOPIC3 = str(GROUP_ID)+"/general"
+SUBSCRIBE_TOPIC4 = str(GROUP_ID)+"/rain"
 PUBLISH_TOPIC1 = str(CLIENT_ID)+"/status"
 PUBLISH_TOPIC2 = str(CLIENT_ID)+"/actPos"
 PUBLISH_TOPIC3 = str(CLIENT_ID)+"/info"
 PUBLISH_TOPIC4 = str(GROUP_ID)+"/general"
+PUBLISH_TOPIC5 = str(GROUP_ID)+"/rain"
 
 # Global values
 gc_text = ''
@@ -317,7 +319,7 @@ def sub_cb(topic, msg, retained):
             cmdOTA = True
 
     
-    elif topic.decode() == SUBSCRIBE_TOPIC3:
+    elif topic.decode() == SUBSCRIBE_TOPIC4:
         if not 'rain' in CLIENT_ID:
             if str(msg.decode()) != "Raining":
                 raining = False
@@ -339,7 +341,7 @@ async def swap_io():
             pos = 0
             if oldval == 1 or oldval == 0:
                 dprint('Raining')
-                await client.publish(PUBLISH_TOPIC4, f"Raining", qos=1)
+                await client.publish(PUBLISH_TOPIC5, f"Raining", qos=1)
                 oldval = 2
         
         elif rain():
@@ -347,7 +349,7 @@ async def swap_io():
 
             if oldval == 2 or oldval == 0:
                 dprint('Ready')
-                await client.publish(PUBLISH_TOPIC4, f"Ready", qos=1)
+                await client.publish(PUBLISH_TOPIC5, f"Not raining", qos=1)
                 oldval = 1
             
     elif not 'rain' in CLIENT_ID:
@@ -641,3 +643,4 @@ try:
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
     asyncio.new_event_loop()
+
