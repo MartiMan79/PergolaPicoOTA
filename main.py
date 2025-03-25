@@ -56,6 +56,7 @@ raining = False
 oldval = 0
 connected = False
 cmdReboot = False
+cmdOTA = False
 
 # HTML file
 if 'rain' in CLIENT_ID:
@@ -93,7 +94,7 @@ async def log_handling():
     record("power-up @ (%d, %d, %d, %d, %d, %d, %d, %d)" % local_time)
     
     try:
-        gc.collect()
+        #gc.collect()
         
         y = local_time[0]  # curr year
         mo = local_time[1] # current month
@@ -111,7 +112,7 @@ async def log_handling():
                 
             elif connected:
                 get_ntp()
-                await asyncio.sleep(1)
+                await asyncio.sleep_ms(0)
         
         # Print time on 30 min intervals
         if s in (1,) and not m % 30:
@@ -120,6 +121,8 @@ async def log_handling():
                 
                 gc_text = f"free: {str(gc.mem_free())}\n"
                 gc.collect()
+                await asyncio.sleep_ms(0)
+                
             except Exception as e:
                 with open(ERRORLOGFILENAME, 'a') as file:
                     file.write(f"error printing: {repr(e)}\n")
@@ -147,6 +150,9 @@ async def log_handling():
             # Start a new data file for today
             with open(DATAFILENAME, 'w') as file:
                 file.write('Date: %d/%d/%d\n' % (mo, d, y))
+            
+            await asyncio.sleep_ms(0)
+
 
     except Exception as e:
         with open(ERRORLOGFILENAME, 'a') as file:
@@ -158,7 +164,7 @@ async def serve_client(reader, writer):
     
     
     try:
-        gc.collect()
+        #gc.collect()
         
         print("Client connected")
         request_line = await reader.readline()
@@ -193,6 +199,8 @@ async def serve_client(reader, writer):
         await writer.drain()
         await writer.wait_closed()
         print("Client disconnected")
+        await asyncio.sleep_ms(0)
+        
     except Exception as e:
         with open(ERRORLOGFILENAME, 'a') as file:
             
@@ -200,7 +208,7 @@ async def serve_client(reader, writer):
 
 
 def record(line):
-    gc.collect()
+    #gc.collect()
     """Combined print and append to data file."""
     print(line)
     line += '\n'
@@ -208,7 +216,7 @@ def record(line):
         file.write(line)
 
 def dprint(*args):
-    gc.collect()
+    #gc.collect()
     logger.debug(*args)
 
 
@@ -231,7 +239,7 @@ async def wifi_han(state):
     else:
         dprint('Wifi is down')
         connected = False
-    await asyncio.sleep(1)
+    await asyncio.sleep_ms(0)
 
 async def get_rssi():
     global rssi
@@ -253,7 +261,7 @@ async def get_rssi():
     await asyncio.sleep(30)
 
 async def get_ntp():
-    gc.collect()
+    #gc.collect()
     
     try:
             
@@ -264,7 +272,8 @@ async def get_ntp():
         tm = time.localtime(time.mktime(time.localtime()) + utc_shift*3600)
         tm = tm[0:3] + (0,) + tm[3:6] + (0,)
         rtc.datetime(tm)
-            
+        await asyncio.sleep_ms(0)
+        
     except OSError as e:
         with open(ERRORLOGFILENAME, 'a') as file:
             file.write(f"OSError while trying to set time: {str(e)}\n")        
@@ -285,7 +294,8 @@ def sub_cb(topic, msg, retained):
     global raining
     global setangle
     global cmdReboot
-    gc.collect()
+    global cmdOTA
+    
     dprint(f'Topic: "{topic.decode()}" Message: "{msg.decode()}" Retained: {retained}')
     
     if topic.decode() == SUBSCRIBE_TOPIC1:
@@ -300,6 +310,11 @@ def sub_cb(topic, msg, retained):
                         
         if str(msg.decode()) == "Reboot":
             cmdReboot = True
+                        
+        elif str(msg.decode()) == "Update":
+            print('cmdOTA: ', cmdOTA)
+            cmdOTA = True
+
     
     elif topic.decode() == SUBSCRIBE_TOPIC3:
         if not 'rain' in CLIENT_ID:
@@ -316,7 +331,7 @@ async def swap_io():
     
     global oldval
     global pos
-    gc.collect()
+    #gc.collect()
 
     if 'rain' in CLIENT_ID:
         if not rain():
@@ -347,21 +362,25 @@ async def swap_io():
             if oldval == 2 or oldval == 0:
                 dprint('Raining')
                 oldval = 1
-
-async def reboot():
-    global cmdReboot
+    await asyncio.sleep_ms(0)
     
-    if cmdReboot:
-          
-        await client.publish(PUBLISH_TOPIC1, f"Re-booting", qos=1)
-        await asyncio.sleep(5)
-        machine.reset()      
-        
+async def reboot():
+    
+    await client.publish(PUBLISH_TOPIC1, f"Re-booting", qos=1)
+    await asyncio.sleep(5)
+    machine.reset()      
+
+async def runOTA():
+    
+    await client.publish(PUBLISH_TOPIC1, f"Updating", qos=1)
+    await asyncio.sleep(5)
+    await OTA()
+
 # Homing sequence
 async def homing():
     
     global homingneeded
-    gc.collect()
+    #gc.collect()
 
     while True:
         await asyncio.sleep(1)
@@ -447,18 +466,19 @@ async def homing():
             s1.stop()
             disable(1)
             dprint("DRIVE ALARM")
-            await homing(client)
+            await homing()
         LED(0)
-        await asyncio.sleep(1)
+        await asyncio.sleep_ms(0)
         break
 
 # Standard operating sequence
 async def motion():
+    
+    global cmdOTA
+    global cmdReboot
 
     updatepos = False
-    
     s = "rssi: {}dB"
-    
 
     while True and not alarm():
         
@@ -506,7 +526,7 @@ async def motion():
             await client.publish(PUBLISH_TOPIC1, f"Positioning error!", qos=1)
             dprint("Positioning error!")
             await asyncio.sleep(5)
-            await homing(client)
+            await homing()
             break
         
         elif s1.get_pos() != pos and not endswitch():
@@ -528,18 +548,24 @@ async def motion():
             updatepos = False
          
         elif cmdReboot:
-             await reboot()
+            await reboot()
              
+        elif cmdOTA:
+            await runOTA()
+    
+        await asyncio.sleep_ms(0)
+    
     while True and alarm():
         
             await client.publish(PUBLISH_TOPIC1, f"DRIVE ALARM", qos=1)
             s1.stop()
             disable(1)
             dprint("DRIVE ALARM")
-            await homing(client)
+            await homing()
 
 async def OTA():
     
+    global cmdOTA
     # Check for OTA updates
     repo_name = "PergolaPicoOTA"
     branch = "refs/heads/main"
@@ -554,27 +580,24 @@ async def OTA():
                              "lib/stepper/__init__.py",
                              )
     ota_updater.download_and_install_update_if_available()
-    
+    cmdOTA = False
+    await client.publish(PUBLISH_TOPIC1, f"Update done", qos=1)
+    await asyncio.sleep_ms(0)
 
-async def main(client):
+async def main():
 
-  
     try:
         await client.connect()
-        await client.publish(PUBLISH_TOPIC3, f'Connected', qos=1)
-        await client.publish(PUBLISH_TOPIC4, f'Ready', qos=1)
 
-       
     except OSError:
         
         with open(ERRORLOGFILENAME, 'a') as file:
             file.write(f"Connection failed: {str(e)}\n")
-        
         return
     
-    
     await get_ntp()
-    await OTA()
+    await client.publish(PUBLISH_TOPIC3, f'Connected', qos=1)
+    await client.publish(PUBLISH_TOPIC4, f'Ready', qos=1)
     dprint("Startup ready")
     
     while True and homingneeded == True:
@@ -600,7 +623,6 @@ elif not 'rain' in CLIENT_ID:
 
 config['keepalive'] = 120
 
-
 # Set up client
 MQTTClient.DEBUG = False  # Optional
 client = MQTTClient(config)
@@ -611,7 +633,7 @@ asyncio.create_task(log_handling())
 asyncio.create_task(asyncio.start_server(serve_client, "0.0.0.0", 80))
 
 try:
-    asyncio.run(main(client))
+    asyncio.run(main())
     
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
