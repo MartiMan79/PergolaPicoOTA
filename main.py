@@ -31,7 +31,7 @@ rain = Pin(16, Pin.IN, Pin.PULL_UP)
 GROUP_ID = config["group_id"]
 CLIENT_ID = config["client_id"]
 
-SUBSCRIBE_TOPIC1 = str(CLIENT_ID)+"/set_angle"
+SUBSCRIBE_TOPIC1 = str(GROUP_ID)+"/set_angle"
 SUBSCRIBE_TOPIC2 = str(CLIENT_ID)+"/status"
 SUBSCRIBE_TOPIC3 = str(GROUP_ID)+"/general"
 PUBLISH_TOPIC1 = str(CLIENT_ID)+"/status"
