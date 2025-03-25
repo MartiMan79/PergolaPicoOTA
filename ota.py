@@ -48,20 +48,15 @@ class OTAUpdater:
             
             if char == "/":
                 count += 1
-            #return count
         
         if count == 1:
             prefix1 = filename.split("/")[0]
 
             filename = filename.split("/")[1]
             if not prefix1 in os.listdir():
-                dprint('Directory not available')
-                dprint(prefix1)
                 os.mkdir(prefix1)
-            #else: dprint('Directory available')
                 
             os.chdir(prefix1)
-            dprint(filename)
             
         if count == 2:
             prefix1 = filename.split("/")[0]
@@ -70,13 +65,9 @@ class OTAUpdater:
             filename = filename.split("/")[2]
             os.chdir(prefix1)
             if not prefix2 in os.listdir():
-                dprint('Directory not available')
-                dprint(prefix2)
                 os.mkdir(prefix2)
-            #else: dprint('Directory available')
-                
+               
             os.chdir(prefix2)
-            dprint(filename)
 
         if count == 3:
             prefix1 = filename.split("/")[0]
@@ -87,32 +78,22 @@ class OTAUpdater:
             
             filename = filename.split("/")[3]
             if not prefix3 in os.listdir():
-                #print('Directory not available')
-                dprint(prefix3)
-                os.mkdir(prefix3)
-            #else: dprint('Directory available')
+               os.mkdir(prefix3)
                 
             os.chdir(prefix3)
-            dprint(filename)
-
-            
-        
             
         response = urequests.get(self.firmware_url)
         if response.status_code == 200:
-            dprint(f'Fetched file {filename}, status: {response.status_code}')
     
             # Save the fetched code to file (with prepended '_')
             new_code = response.text
             with open(f'_{filename}', 'w') as f:
                 f.write(new_code)
-            dprint(f'Saved as _{filename}')
-            #print(os.getcwd())
-            #go back to root
+            
             if not os.getcwd() == "/":
                 
                 os.chdir("/")
-            #print('Current directory: ', os.getcwd)    
+            dprint(f'Fetched file {filename}, status: {response.status_code}')
                 
             return True
         
@@ -179,11 +160,13 @@ class OTAUpdater:
                     
                 newfile = f"_{filename}"
                 os.rename(newfile, filename)
-                dprint(f'Renamed _{filename} to {filename}, overwriting existing file')
+                
                 if not os.getcwd() == "/":
                 
                     os.chdir("/")
                 
+                dprint(f'Renamed _{filename} to {filename}, overwriting existing file')
+            
             # save the current version
             with open('version.json', 'w') as f:
                 json.dump({'version': self.latest_version}, f)
@@ -195,4 +178,5 @@ class OTAUpdater:
             machine.reset() 
         else:
             dprint('No new updates available.')
+
 
