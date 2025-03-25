@@ -370,6 +370,7 @@ async def swap_io():
 async def reboot():
     
     await client.publish(PUBLISH_TOPIC1, f"Re-booting", qos=1)
+    client.close()
     await asyncio.sleep(5)
     machine.reset()      
 
