@@ -581,7 +581,7 @@ async def OTA():
                              )
     ota_updater.download_and_install_update_if_available()
     cmdOTA = False
-    await client.publish(PUBLISH_TOPIC1, f"Update done", qos=1)
+    await client.publish(PUBLISH_TOPIC1, f"No update available", qos=1)
     await asyncio.sleep_ms(0)
 
 async def main():
