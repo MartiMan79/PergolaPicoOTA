@@ -152,6 +152,8 @@ async def log_handling():
                 file.write('Date: %d/%d/%d\n' % (mo, d, y))
             
             await asyncio.sleep_ms(0)
+        
+        
 
 
     except Exception as e:
@@ -540,7 +542,6 @@ async def motion():
             disable(1)
             await client.publish(PUBLISH_TOPIC1, f"Ready", qos=1)
             await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
-            await client.publish(PUBLISH_TOPIC3, s.format(rssi, m), qos=1)
             dprint("Ready")
             dprint("Moved to: "+ str(pos))
             dprint(s.format(rssi))
@@ -588,6 +589,7 @@ async def main():
 
     try:
         await client.connect()
+        await get_ntp()
 
     except OSError:
         
@@ -595,7 +597,10 @@ async def main():
             file.write(f"Connection failed: {str(e)}\n")
         return
     
-    await get_ntp()
+    asyncio.create_task(get_rssi())
+    asyncio.create_task(log_handling())
+    asyncio.create_task(asyncio.start_server(serve_client, "0.0.0.0", 80))
+    
     await client.publish(PUBLISH_TOPIC3, f'Connected', qos=1)
     await client.publish(PUBLISH_TOPIC4, f'Ready', qos=1)
     dprint("Startup ready")
@@ -628,14 +633,10 @@ MQTTClient.DEBUG = False  # Optional
 client = MQTTClient(config)
     
 asyncio.create_task(heartbeat())
-asyncio.create_task(get_rssi())
-asyncio.create_task(log_handling())
-asyncio.create_task(asyncio.start_server(serve_client, "0.0.0.0", 80))
 
 try:
     asyncio.run(main())
     
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
-    asyncio.new_event_loop() 
-
+    asyncio.new_event_loop()
