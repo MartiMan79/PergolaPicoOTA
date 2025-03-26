@@ -305,7 +305,7 @@ def sub_cb(topic, msg, retained):
     
     if topic.decode() == SUBSCRIBE_TOPIC1:
                 
-        if not 0 <= int(msg.decode()) <= 3600000:
+        if not 0 <= int(msg.decode()) <= 288000:
             #dprint(str(msg.decode() + " is no INT"))
             setangle = 0
         else:
@@ -659,3 +659,4 @@ try:
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
     asyncio.new_event_loop()
+
