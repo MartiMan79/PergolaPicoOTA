@@ -18,13 +18,13 @@ if RP2:
     
 
 # define motor controller pins
-s1 = Stepper(18,19,steps_per_rev=96000,speed_sps=1000)
+s1 = Stepper(18,19,steps_per_rev=768000,speed_sps=4000)
 disable = Pin(20, Pin.OUT)
 endswitch = Pin(22, Pin.IN, Pin.PULL_UP)
 alarm = Pin(17, Pin.IN, Pin.PULL_UP)
 LED = machine.Pin("LED",machine.Pin.OUT)
 rain = Pin(16, Pin.IN, Pin.PULL_UP)
-
+pin = Pin(18, Pin.OUT)
 
 # Default  MQTT_BROKER to connect to
 #MQTT Details
@@ -290,6 +290,7 @@ async def conn_han(client):
     await client.subscribe(SUBSCRIBE_TOPIC1, qos=1)
     await client.subscribe(SUBSCRIBE_TOPIC2, qos=1)
     await client.subscribe(SUBSCRIBE_TOPIC3, qos=1)
+    await asyncio.sleep_ms(0)
 
 # Subscription callback
 def sub_cb(topic, msg, retained):
@@ -304,7 +305,7 @@ def sub_cb(topic, msg, retained):
     
     if topic.decode() == SUBSCRIBE_TOPIC1:
                 
-        if not 0 <= int(msg.decode()) <= 36000:
+        if not 0 <= int(msg.decode()) <= 3600000:
             #dprint(str(msg.decode() + " is no INT"))
             setangle = 0
         else:
@@ -430,7 +431,7 @@ async def homing():
 #Homing            
         if not endswitch() and not alarm():
             LED(1)
-            s1.speed(500) #use low speed for the calibration
+            s1.speed(4000) #use low speed for the calibration
             s1.free_run(-1) #move backwards
             disable(0)
             while endswitch.value() == 0 and not alarm(): #wait till the switch is triggered
@@ -459,7 +460,7 @@ async def homing():
             s1.stop() #stop as soon as the switch is triggered
             s1.overwrite_pos(0) #set position as 0 point
             s1.target(0) #set the target to the same value to avoid unwanted movement
-            s1.speed(1000) #return to default speed
+            s1.speed(4000) #return to default speed
             s1.track_target() #start stepper again
             disable(1)
             await client.publish(PUBLISH_TOPIC1, f"Homing successful", qos=1)
@@ -480,18 +481,52 @@ async def motion():
     
     global cmdOTA
     global cmdReboot
-
+    oldVal = False
     updatepos = False
     s = "rssi: {}dB"
 
     while True and not alarm():
         
-        await asyncio.sleep(0.5)
-        await swap_io()
+        #await asyncio.sleep(0)
+        
         gc.collect()
         m = gc.mem_free()
-                   
-        if endswitch():
+        i = 0           
+        
+        if s1.get_pos() != pos and not endswitch():
+            
+            await client.publish(PUBLISH_TOPIC1, f"Moving from: " + str(s1.get_pos()) + " to "+ str(pos), qos=1)
+            await asyncio.sleep(0)
+            
+            while s1.get_pos() != pos and not endswitch():
+                
+                disable(0)
+                s1.target(pos)
+                
+                pass
+            
+            updatepos = True
+            
+        elif s1.get_pos() == pos and not endswitch() and updatepos:
+            disable(1)
+            await client.publish(PUBLISH_TOPIC1, f"Ready", qos=1)
+            await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
+            await client.publish(PUBLISH_TOPIC3, s.format(rssi, m), qos=1)
+            dprint("Ready")
+            dprint("Moved to: "+ str(pos))
+            dprint(s.format(rssi))
+            await asyncio.sleep(0.5)
+            updatepos = False
+         
+        elif cmdReboot:
+            await reboot()
+             
+        elif cmdOTA:
+            await runOTA()
+    
+        
+
+        elif endswitch():
             s1.stop()
             disable(1)
                         
@@ -533,40 +568,20 @@ async def motion():
             await homing()
             break
         
-        elif s1.get_pos() != pos and not endswitch():
-            disable(0)
-            s1.target(pos)
-            await client.publish(PUBLISH_TOPIC1, f"Moving from: " + str(s1.get_pos()) + " to "+ str(pos), qos=1)
-            await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
-            await asyncio.sleep(0.5)
-            updatepos = True
-            
-        elif s1.get_pos() == pos and not endswitch() and updatepos:
-            disable(1)
-            await client.publish(PUBLISH_TOPIC1, f"Ready", qos=1)
-            await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
-            await client.publish(PUBLISH_TOPIC3, s.format(rssi, m), qos=1)
-            dprint("Ready")
-            dprint("Moved to: "+ str(pos))
-            dprint(s.format(rssi))
-            await asyncio.sleep(0.5)
-            updatepos = False
-         
-        elif cmdReboot:
-            await reboot()
-             
-        elif cmdOTA:
-            await runOTA()
-    
+        await swap_io()
         await asyncio.sleep_ms(0)
-    
+
     while True and alarm():
         
+        if not oldVal:
+                    
             await client.publish(PUBLISH_TOPIC1, f"DRIVE ALARM", qos=1)
-            s1.stop()
-            disable(1)
-            dprint("DRIVE ALARM")
-            await homing()
+            oldVal = True
+            
+        s1.stop()
+        disable(1)
+        dprint("DRIVE ALARM")
+        await homing()
 
 async def OTA():
     
@@ -644,4 +659,3 @@ try:
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
     asyncio.new_event_loop()
-
