@@ -45,6 +45,9 @@ PUBLISH_TOPIC5 = str(GROUP_ID)+"/rain"
 gc_text = ''
 DATAFILENAME = 'data.txt'
 LOGFILENAME = 'debug.log'
+LOGFILENAME1 = 'debug.log1'
+LOGFILENAME2 = 'debug.log2'
+LOGFILENAME3 = 'debug.log3'
 ERRORLOGFILENAME = 'errorlog.txt'
 
 # Variables
@@ -185,6 +188,21 @@ async def serve_client(reader, writer):
                 data = file.read()
             heading = "Debug"
             print('log demanded')
+        elif '/log1' in request_line.split()[1]:
+            with open(LOGFILENAME1) as file:
+                data = file.read()
+            heading = "Debug1"
+            print('log demanded')
+        elif '/log2' in request_line.split()[1]:
+            with open(LOGFILENAME2) as file:
+                data = file.read()
+            heading = "Debug2"
+            print('log demanded')
+        elif '/log3' in request_line.split()[1]:
+            with open(LOGFILENAME3) as file:
+                data = file.read()
+            heading = "Debug3"
+            print('log demanded')
         elif '/err' in request_line.split()[1]:
             with open(ERRORLOGFILENAME) as file:
                 data = file.read()
@@ -209,7 +227,6 @@ async def serve_client(reader, writer):
         with open(ERRORLOGFILENAME, 'a') as file:
             
             file.write(f"serve_client error @ {timestamp}: {str(e)}\n")
-
 
 def record(line):
     #gc.collect()
