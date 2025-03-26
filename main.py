@@ -45,9 +45,9 @@ PUBLISH_TOPIC5 = str(GROUP_ID)+"/rain"
 gc_text = ''
 DATAFILENAME = 'data.txt'
 LOGFILENAME = 'debug.log'
-LOGFILENAME1 = 'debug.log1'
-LOGFILENAME2 = 'debug.log2'
-LOGFILENAME3 = 'debug.log3'
+LOGFILENAME1 = 'debug.log.1'
+LOGFILENAME2 = 'debug.log.2'
+LOGFILENAME3 = 'debug.log.3'
 ERRORLOGFILENAME = 'errorlog.txt'
 
 # Variables
