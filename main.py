@@ -414,7 +414,7 @@ async def homing():
             await client.publish(PUBLISH_TOPIC1, f"Crash detected, recovery started", qos=1)
             dprint("Crash detected, recovery started")
             LED(1)
-            s1.speed(1000) #use low speed for the calibration
+            s1.speed(4000) #use low speed for the calibration
              
             disable(0)
             s1.free_run(1)
