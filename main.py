@@ -514,12 +514,11 @@ async def motion():
             
             await client.publish(PUBLISH_TOPIC1, f"Moving from: " + str(s1.get_pos()) + " to "+ str(pos), qos=1)
             await asyncio.sleep(0)
-            
+            disable(0)            
+            time.sleep(1)
             while s1.get_pos() != pos and not endswitch():
-                
-                disable(0)
+
                 s1.target(pos)
-                
                 pass
             
             updatepos = True
