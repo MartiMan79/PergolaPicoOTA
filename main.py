@@ -45,9 +45,9 @@ PUBLISH_TOPIC5 = str(GROUP_ID)+"/rain"
 gc_text = ''
 DATAFILENAME = 'data.txt'
 LOGFILENAME = 'debug.log'
-LOGFILENAME1 = 'debug.log.1'
-LOGFILENAME2 = 'debug.log.2'
-LOGFILENAME3 = 'debug.log.3'
+LOGFILENAME1 = 'debug.log1'
+LOGFILENAME2 = 'debug.log2'
+LOGFILENAME3 = 'debug.log3'
 ERRORLOGFILENAME = 'errorlog.txt'
 
 # Variables
@@ -94,71 +94,77 @@ async def log_handling():
     
     global connected
     global timestamp
-    
+
     local_time = time.localtime()
     record("power-up @ (%d, %d, %d, %d, %d, %d, %d, %d)" % local_time)
     
+    
+        
     try:
-        #gc.collect()
-        
-        y = local_time[0]  # curr year
-        mo = local_time[1] # current month
-        d = local_time[2]  # current day
-        h = local_time[3]  # curr hour
-        m = local_time[4]  # curr minute
-        s = local_time[5]  # curr second
-        
-        timestamp = f"{h:02}:{m:02}:{s:02}"
-        
-        # Test WiFi connection twice per minute
-        if s in (15, 45):
-            if not connected:
-                record(f"{timestamp} WiFi not connected")
-                
-            elif connected:
-                get_ntp()
-                await asyncio.sleep_ms(0)
-        
-        # Print time on 30 min intervals
-        if s in (1,) and not m % 30:
-            try:
-                record(f"datapoint @ {timestamp}")
-                
-                gc_text = f"free: {str(gc.mem_free())}\n"
-                gc.collect()
-                await asyncio.sleep_ms(0)
-                
-            except Exception as e:
-                with open(ERRORLOGFILENAME, 'a') as file:
-                    file.write(f"error printing: {repr(e)}\n")
+        while True:
 
-        # Once daily (during the wee hours)
-        if h == 2 and m == 10 and s == 1:
+            gc.collect()
+            y = local_time[0]  # curr year
+            mo = local_time[1] # current month
+            d = local_time[2]  # current day
+            h = local_time[3]  # curr hour
+            m = local_time[4]  # curr minute
+            s = local_time[5]  # curr second
             
-            # Read lines from previous day
-            with open(DATAFILENAME) as f:
-                lines = f.readlines()
+            timestamp = f"{h:02}:{m:02}:{s:02}"
+            
+            # Test WiFi connection twice per minute
+            if s in (15, 45):
+                if not connected:
+                    record(f"{timestamp} WiFi not connected")
+                    
+                elif connected:
+                    settime()
+                    dprint('ntp done')
+                    await asyncio.sleep_ms(0)
+            
+            # Print time on 30 min intervals
+            if s in (1,) and not m % 30:
+                try:
+                    record(f"datapoint @ {timestamp}")
+                    
+                    gc_text = f"free: {str(gc.mem_free())}\n"
+                    gc.collect()
+                    await asyncio.sleep_ms(0)
+                    
+                except Exception as e:
+                    with open(ERRORLOGFILENAME, 'a') as file:
+                        file.write(f"error printing: {repr(e)}\n")
 
-            # first line is yesterday's date
-            yesterdate = lines[0].split()[-1].strip()
+            # Once daily (during the wee hours)
+            if h == 9 and m == 33 and s == 59:
+                
+                # Read lines from previous day
+                with open(DATAFILENAME) as f:
+                    lines = f.readlines()
 
-            # cull all lines containing '@'
-            lines = [line
-                     for line in lines
-                     if '@' not in line]
-            
-            # Log lines from previous day
-            with open(LOGFILENAME, 'a') as f:
-                for line in lines:
-                    f.write(line)
-            
-            # Start a new data file for today
-            with open(DATAFILENAME, 'w') as file:
-                file.write('Date: %d/%d/%d\n' % (mo, d, y))
-            
+                # first line is yesterday's date
+                yesterdate = lines[0].split()[-1].strip()
+
+                # cull all lines containing '@'
+                lines = [line
+                         for line in lines
+                         if '@' not in line]
+                
+                # Log lines from previous day
+                with open(LOGFILENAME, 'a') as f:
+                    for line in lines:
+                        f.write(line)
+                
+                # Start a new data file for today
+                with open(DATAFILENAME, 'w') as file:
+                    file.write('Date: %d/%d/%d\n' % (mo, d, y))
+                print('file refresh done')
+                
+                
             await asyncio.sleep_ms(0)
-        
-        
+            
+            
 
 
     except Exception as e:
@@ -171,6 +177,7 @@ async def serve_client(reader, writer):
     
     
     try:
+        
         #gc.collect()
         
         print("Client connected")
@@ -179,29 +186,31 @@ async def serve_client(reader, writer):
         
         # We are not interested in HTTP request headers, skip them
         while await reader.readline() != b"\r\n":
+            await asyncio.sleep_ms(0)
             pass
 
         version = f"MicroPython Version: {sys.version}"
 
-        if '/log' in request_line.split()[1]:
-            with open(LOGFILENAME) as file:
-                data = file.read()
-            heading = "Debug"
-            print('log demanded')
-        elif '/log1' in request_line.split()[1]:
+        
+        if '/log1' in request_line.split()[1]:
             with open(LOGFILENAME1) as file:
                 data = file.read()
             heading = "Debug1"
-            print('log demanded')
+            print('log1 demanded')
         elif '/log2' in request_line.split()[1]:
             with open(LOGFILENAME2) as file:
                 data = file.read()
             heading = "Debug2"
-            print('log demanded')
+            print('log2 demanded')
         elif '/log3' in request_line.split()[1]:
             with open(LOGFILENAME3) as file:
                 data = file.read()
             heading = "Debug3"
+            print('log3 demanded')
+        elif '/log' in request_line.split()[1]:
+            with open(LOGFILENAME) as file:
+                data = file.read()
+            heading = "Debug"
             print('log demanded')
         elif '/err' in request_line.split()[1]:
             with open(ERRORLOGFILENAME) as file:
@@ -249,24 +258,11 @@ async def heartbeat():
         LED(s)
         s = not s
 
-async def wifi_han(state):
-    global connected
-    s = "rssi: {}dB"
-    LED(not state)
-    if state:
-        connected = True
-        dprint('Wifi is up')
-        dprint(s.format(rssi))
-    else:
-        dprint('Wifi is down')
-        connected = False
-    await asyncio.sleep_ms(0)
-
 async def get_rssi():
     global rssi
     s = network.WLAN()
     ssid = config["ssid"].encode("UTF8")
-    #while True:
+    
     try:
         while True:
             
@@ -281,25 +277,19 @@ async def get_rssi():
             
     await asyncio.sleep(30)
 
-async def get_ntp():
-    #gc.collect()
-    
-    try:
-            
-        settime()
-        rtc = machine.RTC()
-        utc_shift = 1
 
-        tm = time.localtime(time.mktime(time.localtime()) + utc_shift*3600)
-        tm = tm[0:3] + (0,) + tm[3:6] + (0,)
-        rtc.datetime(tm)
-        await asyncio.sleep_ms(0)
-        
-    except OSError as e:
-        with open(ERRORLOGFILENAME, 'a') as file:
-            file.write(f"OSError while trying to set time: {str(e)}\n")        
-        
-    print("machine time is:",(time.localtime()))
+async def wifi_han(state):
+    global connected
+    s = "rssi: {}dB"
+    LED(not state)
+    if state:
+        connected = True
+        dprint('Wifi is up')
+    else:
+        dprint('Wifi is down')
+        connected = False
+    await asyncio.sleep_ms(0)
+ 
 
 # If you connect with clean_session True, must re-subscribe (MQTT spec 3.1.2.4)
 async def conn_han(client):
@@ -335,8 +325,7 @@ def sub_cb(topic, msg, retained):
                         
         elif str(msg.decode()) == "Update":
             cmdOTA = True
-
-    
+            
     elif topic.decode() == SUBSCRIBE_TOPIC4:
         if not 'rain' in CLIENT_ID:
             if str(msg.decode()) != "Raining":
@@ -452,6 +441,7 @@ async def homing():
             s1.free_run(-1) #move backwards
             disable(0)
             while endswitch.value() == 0 and not alarm(): #wait till the switch is triggered
+                await asyncio.sleep(0)
                 pass
         
             s1.stop() #stop as soon as the switch is triggered
@@ -517,7 +507,7 @@ async def motion():
             disable(0)            
             time.sleep(1)
             while s1.get_pos() != pos and not endswitch():
-
+                await asyncio.sleep(0)
                 s1.target(pos)
                 pass
             
