@@ -600,6 +600,7 @@ async def OTA():
                              "main.py",
                              "ota.py",
                              "log.py",
+                             "time.py",
                              "lib/ntptime.py",
                              "lib/logging/handlers.py",
                              "lib/logging/__init__.py",
