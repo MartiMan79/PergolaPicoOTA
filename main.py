@@ -297,6 +297,7 @@ async def conn_han(client):
     await client.subscribe(SUBSCRIBE_TOPIC1, qos=1)
     await client.subscribe(SUBSCRIBE_TOPIC2, qos=1)
     await client.subscribe(SUBSCRIBE_TOPIC3, qos=1)
+    await client.subscribe(SUBSCRIBE_TOPIC4, qos=1)
     await asyncio.sleep_ms(0)
 
 # Subscription callback
