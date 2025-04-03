@@ -492,125 +492,140 @@ async def motion():
     oldVal = False
     updatepos = False
     s = "rssi: {}dB"
-
-    while True and not alarm():
+    try:
         
-        #await asyncio.sleep(0)
-        
-        gc.collect()
-        m = gc.mem_free()
-        i = 0           
-        
-        if s1.get_pos() != pos and not endswitch():
+        while True and not alarm():
             
-            await client.publish(PUBLISH_TOPIC1, f"Moving from: " + str(s1.get_pos()) + " to "+ str(pos), qos=1)
-            await asyncio.sleep(0)
-            disable(0)            
-            time.sleep(1)
-            while s1.get_pos() != pos and not endswitch():
+            #await asyncio.sleep(0)
+            
+            gc.collect()
+            m = gc.mem_free()
+            i = 0           
+            
+            if s1.get_pos() != pos and not endswitch():
+                
+                await client.publish(PUBLISH_TOPIC1, f"Moving from: " + str(s1.get_pos()) + " to "+ str(pos), qos=1)
                 await asyncio.sleep(0)
-                s1.target(pos)
-                pass
-            
-            updatepos = True
-            
-        elif s1.get_pos() == pos and not endswitch() and updatepos:
-            disable(1)
-            await client.publish(PUBLISH_TOPIC1, f"Ready", qos=1)
-            await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
-            await client.publish(PUBLISH_TOPIC3, s.format(rssi, m), qos=1)
-            dprint("Ready")
-            dprint("Moved to: "+ str(pos))
-            dprint(s.format(rssi))
-            await asyncio.sleep(0.5)
-            updatepos = False
-         
-        elif cmdReboot:
-            await reboot()
-             
-        elif cmdOTA:
-            await runOTA()
-    
-        
-
-        elif endswitch():
-            s1.stop()
-            disable(1)
-                        
-            if pos >= s1.get_pos():
-                s1.free_run(-1)
-                disable(0)
-                now = time.time()
-                delay = 3           
-                while endswitch.value() == 1: #wait till the switch is triggered
-                    if time.time() > now + delay:
-                        dprint("Recovery failed")
-                        await client.publish(PUBLISH_TOPIC1, f"Recovery failed!", qos=1)
-                        s1.stop()
-                        disable(1)
-                        await asyncio.sleep(5)
-                        sys.exit("Recovery failed!")
+                disable(0)            
+                time.sleep(1)
+                while s1.get_pos() != pos and not endswitch():
+                    await asyncio.sleep(0)
+                    s1.target(pos)
                     pass
                 
-            elif pos <= s1.get_pos():
-                s1.free_run(1)
-                disable(0)
-                now = time.time()
-                delay = 3           
-                while endswitch.value() == 1: #wait till the switch is triggered
-                    if time.time() > now + delay:
-                        dprint("Recovery failed")
-                        await client.publish(PUBLISH_TOPIC1, f"Recovery failed!", qos=1)
-                        s1.stop()
-                        disable(1)
-                        await asyncio.sleep(5)
-                        sys.exit("Recovery failed!")
-                    pass
-            await asyncio.sleep(0.5)
-            s1.stop()
+                updatepos = True
+                
+            elif s1.get_pos() == pos and not endswitch() and updatepos:
+                disable(1)
+                await client.publish(PUBLISH_TOPIC1, f"Ready", qos=1)
+                await client.publish(PUBLISH_TOPIC2, str(s1.get_pos()), qos=1)
+                await client.publish(PUBLISH_TOPIC3, s.format(rssi, m), qos=1)
+                dprint("Ready")
+                dprint("Moved to: "+ str(pos))
+                dprint(s.format(rssi))
+                await asyncio.sleep(0.5)
+                updatepos = False
+             
+            elif cmdReboot:
+                await reboot()
+                 
+            elif cmdOTA:
+                await runOTA()
+        
             
-            await client.publish(PUBLISH_TOPIC1, f"Positioning error!", qos=1)
-            dprint("Positioning error!")
-            await asyncio.sleep(5)
-            await homing()
-            break
-        
-        await swap_io()
-        await asyncio.sleep_ms(0)
-
-    while True and alarm():
-        
-        if not oldVal:
+    
+            elif endswitch():
+                s1.stop()
+                disable(1)
+                            
+                if pos >= s1.get_pos():
+                    s1.free_run(-1)
+                    disable(0)
+                    now = time.time()
+                    delay = 3           
+                    while endswitch.value() == 1: #wait till the switch is triggered
+                        if time.time() > now + delay:
+                            dprint("Recovery failed")
+                            await client.publish(PUBLISH_TOPIC1, f"Recovery failed!", qos=1)
+                            s1.stop()
+                            disable(1)
+                            await asyncio.sleep(5)
+                            sys.exit("Recovery failed!")
+                        pass
                     
-            await client.publish(PUBLISH_TOPIC1, f"DRIVE ALARM", qos=1)
-            oldVal = True
+                elif pos <= s1.get_pos():
+                    s1.free_run(1)
+                    disable(0)
+                    now = time.time()
+                    delay = 3           
+                    while endswitch.value() == 1: #wait till the switch is triggered
+                        if time.time() > now + delay:
+                            dprint("Recovery failed")
+                            await client.publish(PUBLISH_TOPIC1, f"Recovery failed!", qos=1)
+                            s1.stop()
+                            disable(1)
+                            await asyncio.sleep(5)
+                            sys.exit("Recovery failed!")
+                        pass
+                await asyncio.sleep(0.5)
+                s1.stop()
+                
+                await client.publish(PUBLISH_TOPIC1, f"Positioning error!", qos=1)
+                dprint("Positioning error!")
+                await asyncio.sleep(5)
+                await homing()
+                break
             
-        s1.stop()
-        disable(1)
-        dprint("DRIVE ALARM")
-        await homing()
-
+            await swap_io()
+            await asyncio.sleep_ms(0)
+    
+        while True and alarm():
+            
+            if not oldVal:
+                        
+                await client.publish(PUBLISH_TOPIC1, f"DRIVE ALARM", qos=1)
+                oldVal = True
+                
+            s1.stop()
+            disable(1)
+            dprint("DRIVE ALARM")
+            await homing()
+            
+    except OSError as e:
+        
+        with open(ERRORLOGFILENAME, 'a') as file:
+            file.write(f"motion loop failed: {str(e)}\n")
+            
 async def OTA():
     
     global cmdOTA
-    # Check for OTA updates
-    repo_name = "PergolaPicoOTA"
-    branch = "refs/heads/main"
-    firmware_url = f"https://github.com/MartiMan79/{repo_name}/{branch}/"
-    ota_updater = OTAUpdater(firmware_url,
-                             "main.py",
-                             "ota.py",
-                             "log.py",
-                             "time.py",
-                             "lib/ntptime.py",
-                             "lib/logging/handlers.py",
-                             "lib/logging/__init__.py",
-                             "lib/stepper/__init__.py",
-                             )
-    ota_updater.download_and_install_update_if_available()
-    cmdOTA = False
-    await client.publish(PUBLISH_TOPIC1, f"No update available", qos=1)
-    await asyncio.sleep_ms(0)
+
+    try:
+            
+        # Check for OTA updates
+        repo_name = "PergolaPicoOTA"
+        branch = "refs/heads/main"
+        firmware_url = f"https://github.com/MartiMan79/{repo_name}/{branch}/"
+        ota_updater = OTAUpdater(firmware_url,
+                                 "main.py",
+                                 "ota.py",
+                                 "log.py",
+                                 "time.py",
+                                 "lib/ntptime.py",
+                                 "lib/logging/handlers.py",
+                                 "lib/logging/__init__.py",
+                                 "lib/stepper/__init__.py",
+                                 )
+        ota_updater.download_and_install_update_if_available()
+        cmdOTA = False
+        await client.publish(PUBLISH_TOPIC1, f"No update available", qos=1)
+        await asyncio.sleep_ms(0)
+    
+    except OSError as e:
+        
+        with open(ERRORLOGFILENAME, 'a') as file:
+            file.write(f"OTA failed: {str(e)}\n")
+        return
 
 async def main():
 
